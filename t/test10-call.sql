@@ -1,0 +1,23 @@
+CREATE OR REPLACE FUNCTION get_userid_by_username(username text) RETURNS INTEGER AS $$
+SELECT 123;
+$$ LANGUAGE sql;
+
+CREATE OR REPLACE FUNCTION get_user_hosts(userid integer) RETURNS SETOF INET AS $$
+SELECT '127.0.0.1'::inet
+UNION ALL
+SELECT '192.168.0.1'::inet
+UNION ALL
+SELECT '10.0.0.1'::inet
+$$ LANGUAGE sql;
+
+CREATE OR REPLACE FUNCTION get_user_details(OUT firstname text, OUT lastname text, OUT creationdate date, userid integer) RETURNS RECORD AS $$
+SELECT 'Joel'::text, 'Jacobson'::text, '2012-05-25'::date;
+$$ LANGUAGE sql;
+
+CREATE OR REPLACE FUNCTION get_user_friends(INOUT userid integer, OUT firstname text, OUT lastname text, OUT creationdate date) RETURNS SETOF RECORD AS $$
+SELECT 234, 'Claes'::text, 'Jakobsson'::text, '2012-05-26'::date
+UNION ALL
+SELECT 345, 'Magnus'::text, 'Hagander'::text, '2012-05-27'::date
+UNION ALL
+SELECT 456, 'Lukas'::text, 'Gratte'::text, '2012-05-28'::date;
+$$ LANGUAGE sql;

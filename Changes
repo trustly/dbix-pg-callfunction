@@ -1,0 +1,9 @@
+=head1 NAME
+
+Changes - List of significant changes to DBIx::Pg::CallFunction
+
+=head2 Changes in 0.001
+
+  First version.
+
+=cut
