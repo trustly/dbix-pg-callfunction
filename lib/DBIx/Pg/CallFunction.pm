@@ -1,5 +1,5 @@
 package DBIx::Pg::CallFunction;
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 =head1 NAME
 
@@ -7,7 +7,7 @@ DBIx::Pg::CallFunction - Simple interface for calling PostgreSQL functions from 
 
 =head1 VERSION
 
-version 0.001
+version 0.002
 
 =head1 SYNOPSIS
 
@@ -62,6 +62,7 @@ You may use and distribute on the same terms as Perl 5.10.1.
 
 use strict;
 use warnings;
+
 use Carp;
 use DBI;
 
@@ -82,7 +83,7 @@ sub AUTOLOAD
 {
     my $self   = shift;
     my $args   = shift;
-    my ($name) = $AUTOLOAD;
+    my $name   = $AUTOLOAD;
     return if ($name =~ /DESTROY$/);
     $name =~ s!^.*::([^:]+)$!$1!;
     return $self->call($name, $args);
@@ -90,6 +91,10 @@ sub AUTOLOAD
 
 sub _proretset
 {
+    # Returns the value of pg_catalog.pg_proc.proretset for the function.
+    # "proretset" is short for procedure returns set.
+    # If 1, the function returns multiple rows, or zero rows.
+    # If 0, the function always returns exactly one row.
     my ($self, $name, $argnames) = @_;
     my $get_proretset = $self->{dbh}->prepare("
         SELECT oid, proretset, proargnames, proargmodes
@@ -155,7 +160,7 @@ sub call
 {
     my ($self,$name,$args) = @_;
 
-    my $validate_name_regex = qr/^[a-zA-Z_]+[a-zA-Z0-9_]*$/;
+    my $validate_name_regex = qr/^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
     croak "dbh and name must be defined" unless defined $self->{dbh} && defined $name;
     croak "invalid format of name" unless $name =~ $validate_name_regex;
@@ -164,7 +169,13 @@ sub call
     my @arg_names = sort keys %{$args};
     my @arg_values = @{$args}{@arg_names};
 
-    $_ =~ $validate_name_regex || croak "invalid format of argument name: $_" for @arg_names;
+    foreach my $arg_name (@arg_names)
+    {
+        if ($arg_name !~ $validate_name_regex)
+        {
+            croak "invalid format of argument name: $arg_name";
+        }
+    }
 
     my $placeholders = join ",", map { "$_ := ?" } @arg_names;
 

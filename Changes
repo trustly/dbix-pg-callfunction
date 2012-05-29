@@ -2,6 +2,12 @@
 
 Changes - List of significant changes to DBIx::Pg::CallFunction
 
+=head2 Changes in 0.002
+
+  Changed license to MIT
+  Various indentation and regex fixes
+  Added description of the pg_catalog.pg_proc.proretset column
+
 =head2 Changes in 0.001
 
   First version.
