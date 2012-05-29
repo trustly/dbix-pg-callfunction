@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 
+use lib 'lib';
 use DBIx::Pg::CallFunction;
 use Data::Dumper;
 

@@ -67,16 +67,19 @@ use DBI;
 
 our $AUTOLOAD;
 
-sub new {
+sub new
+{
     my $class = shift;
-    my $self = {
+    my $self =
+    {
         dbh => shift
     };
     bless $self, $class;
     return $self;
 }
 
-sub AUTOLOAD {
+sub AUTOLOAD
+{
     my $self   = shift;
     my $args   = shift;
     my ($name) = $AUTOLOAD;
@@ -85,16 +88,66 @@ sub AUTOLOAD {
     return $self->call($name, $args);
 }
 
-sub _proretset {
+sub _proretset
+{
     my ($self, $name, $argnames) = @_;
     my $get_proretset = $self->{dbh}->prepare("
-        SELECT proretset
+        SELECT oid, proretset, proargnames, proargmodes
         FROM pg_catalog.pg_proc
         WHERE proname = ?::text
         AND ?::text[] <@ proargnames
     ");
     $get_proretset->execute($name, $argnames);
-    my ($proretset) = $get_proretset->fetchrow_array();
+
+    my $proretset;
+
+    my @sorted_query_input_argnames = sort @$argnames;
+    for (my $row_number=0; my $h = $get_proretset->fetchrow_hashref(); $row_number++) {
+        # check all functions having the query input arguments,
+        # but some of them might be OUT arguments,
+        # check if we can find exactly one function with the same
+        # IN or INOUT arguments.
+        my @function_input_arguments;
+        if (!defined $h->{proargmodes})
+        {
+            # only IN arguments
+            @function_input_arguments = @{$h->{proargnames}};
+        }
+        else
+        {
+            # sanity check
+            unless (@{$h->{proargnames}} == @{$h->{proargmodes}})
+            {
+                croak "proargnames and proargmodes and not of equal length";
+            }
+            for (my $i=0; $i < @{$h->{proargnames}}; $i++)
+            {
+                if ($h->{proargmodes}->[$i] =~ m/^[ib]$/)
+                {
+                    # IN or INOUT argument, add to list
+                    push @function_input_arguments, $h->{proargnames}->[$i];
+                }
+            }
+        }
+        my @sorted_function_input_arguments = sort @function_input_arguments;
+
+        if (@sorted_query_input_argnames == @sorted_function_input_arguments)
+        {
+            my $equal = 1;
+            for (my $i=0; $i<@sorted_query_input_argnames; $i++)
+            {
+                if ($sorted_query_input_argnames[$i] ne $sorted_function_input_arguments[$i])
+                {
+                    $equal = 0;
+                }
+            }
+            if ($equal == 1)
+            {
+                croak "multiple functions matches the same input arguments, function: $name" if defined $proretset;
+                $proretset = $h->{proretset};
+            }
+        }
+    }
     return $proretset;
 }
 
@@ -127,8 +180,10 @@ sub call
     my $output;
     my $num_cols;
     my @output_columns;
-    for (my $row_number=0; my $h = $query->fetchrow_hashref(); $row_number++) {
-        if ($row_number == 0) {
+    for (my $row_number=0; my $h = $query->fetchrow_hashref(); $row_number++)
+    {
+        if ($row_number == 0)
+        {
             @output_columns = sort keys %{$h};
             $num_cols = scalar @output_columns;
             croak "no columns in return" unless $num_cols >= 1;
