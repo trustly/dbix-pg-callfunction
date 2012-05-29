@@ -7,6 +7,22 @@ Changes - List of significant changes to DBIx::Pg::CallFunction
   Changed license to MIT
   Various indentation and regex fixes
   Added description of the pg_catalog.pg_proc.proretset column
+  Make sure we get the proretset value for the right function,
+    the WHERE statement could possibly match other functions
+    sharing the only part of the arguments, as some of the
+    arguments could be OUT arguments. This is now fixed
+    by comparing only the IN arguments.
+    If two functions matches exactly the same IN argument
+    names, an error is thrown.
+    Thus, overloading of functions with the same argument
+    names is not possible. Would be possible to implement,
+    but that would make the interface more cumbersome,
+    as you would need to specify the data types of all
+    input arguments. Perhaps this could be added as an
+    optional third argument to the call() function.
+    I don't need this now, so I'll put it on the TODO
+    until someone needs it and complains. Better to keep it
+    simple for now.
 
 =head2 Changes in 0.001
 
