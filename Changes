@@ -2,7 +2,12 @@
 
 Changes - List of significant changes to DBIx::Pg::CallFunction
 
-=head2 Changes in 0.002
+=head2 Changes in 0.003
+
+  No changes, but had to change version number to upload to PAUSE,
+    as you cannot upload the same file twice.
+
+=head2 Changes in 0.003
 
   Changed license to MIT
   Various indentation and regex fixes
