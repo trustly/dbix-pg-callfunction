@@ -11,4 +11,4 @@ t/release-pod-coverage.t
 t/release-pod-syntax.t
 t/test10-call.sql
 t/test10-call.t
-bin/example.pl
+examples/example.pl
