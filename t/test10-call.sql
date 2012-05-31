@@ -22,10 +22,11 @@ UNION ALL
 SELECT 456, 'Lukas'::text, 'Gratte'::text, '2012-05-28'::date;
 $$ LANGUAGE sql;
 
-CREATE OR REPLACE FUNCTION get_user_friends(INOUT userid integer, OUT firstname text, OUT lastname text, OUT creationdate date) RETURNS SETOF RECORD AS $$
-SELECT 234, 'Claes'::text, 'Jakobsson'::text, '2012-05-26'::date
-UNION ALL
-SELECT 345, 'Magnus'::text, 'Hagander'::text, '2012-05-27'::date
-UNION ALL
-SELECT 456, 'Lukas'::text, 'Gratte'::text, '2012-05-28'::date;
+CREATE OR REPLACE FUNCTION same_name_same_input_arguments(foo integer) RETURNS BOOLEAN AS $$
+SELECT TRUE;
 $$ LANGUAGE sql;
+
+CREATE OR REPLACE FUNCTION same_name_same_input_arguments(foo text) RETURNS BOOLEAN AS $$
+SELECT TRUE;
+$$ LANGUAGE sql;
+

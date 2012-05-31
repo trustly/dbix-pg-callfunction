@@ -1,5 +1,5 @@
 package DBIx::Pg::CallFunction;
-our $VERSION = '0.003';
+our $VERSION = '0.004';
 
 =head1 NAME
 
@@ -7,7 +7,7 @@ DBIx::Pg::CallFunction - Simple interface for calling PostgreSQL functions from 
 
 =head1 VERSION
 
-version 0.003
+version 0.004
 
 =head1 SYNOPSIS
 
@@ -45,18 +45,54 @@ functions with no arguments at all. This limitation reduces the mapping
 complexity, as multiple functions in PostgreSQL can share the same name,
 but with different input argument types.
 
-=head1 OTHER INFORMATION
+=head1 SEE ALSO
 
-=head2 Limitations and Caveats
+This module is built on top of L<DBI>, and
+you need to use that module (and the appropriate DBD::xx drivers)
+to establish a database connection.
+
+There is another module providing about the same functionality,
+but without support for named arguments. Have a look at this one
+if you need to access functions without named arguments,
+or if you are using Oracle:
+
+L<DBIx::ProcedureCall|DBIx::ProcedureCall>
+
+=head1 LIMITATIONS
 
 Requires PostgreSQL 9.0 or later.
+Only supports stored procedures / functions with
+named input arguments.
 
-=head2 Author and Copyright
+=head1 AUTHORS
 
 Joel Jacobson L<http://www.joelonsql.com>
 
+=head1 COPYRIGHT
+
 Copyright (c) Joel Jacobson, Sweden, 2012. All rights reserved.
-You may use and distribute on the same terms as Perl 5.10.1.
+
+This software is released under the MIT license cited below.
+
+=head2 The "MIT" License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 
 =cut
 
@@ -96,64 +132,86 @@ sub _proretset
     # If 1, the function returns multiple rows, or zero rows.
     # If 0, the function always returns exactly one row.
     my ($self, $name, $argnames) = @_;
-    my $get_proretset = $self->{dbh}->prepare("
-        SELECT oid, proretset, proargnames, proargmodes
-        FROM pg_catalog.pg_proc
+
+    my $get_proretset = $self->{dbh}->prepare_cached("
+        WITH
+        -- Unnest the proargname and proargmode
+        -- arrays, so we get one argument per row,
+        -- allowing us to select only the IN
+        -- arguments and build new arrays.
+        NamedInputArgumentFunctions AS (
+            -- For functions with only IN arguments,
+            -- proargmodes IS NULL
+            SELECT
+                oid,
+                proname,
+                proretset,
+                unnest(proargnames) AS proargname,
+                'i'::text AS proargmode
+            FROM pg_catalog.pg_proc
+            WHERE proargnames IS NOT NULL
+            AND proargmodes IS NULL
+            UNION ALL
+            -- For functions with INOUT/OUT arguments,
+            -- proargmodes is an array where each
+            -- position matches proargname and
+            -- indicates if its an IN, OUT or INOUT
+            -- argument.
+            SELECT
+                oid,
+                proname,
+                proretset,
+                unnest(proargnames) AS proargname,
+                unnest(proargmodes) AS proargmode
+            FROM pg_catalog.pg_proc
+            WHERE proargnames IS NOT NULL
+            AND proargmodes IS NOT NULL
+        ),
+        OnlyINandINOUTArguments AS (
+            -- Select only the IN and INOUT
+            -- arguments and build new arrays
+            SELECT
+                oid,
+                proname,
+                proretset,
+                array_agg(proargname) AS proargnames
+            FROM NamedInputArgumentFunctions
+            WHERE proargmode IN ('i','b')
+            GROUP BY
+                oid,
+                proname,
+                proretset
+        )
+        -- Find any function matching the name
+        -- and having identical argument names
+        SELECT * FROM OnlyINandINOUTArguments
         WHERE proname = ?::text
+        -- The order of arguments doesn't matter,
+        -- so compare the arrays by checking
+        -- if A contains B and B contains A
         AND ?::text[] <@ proargnames
+        AND ?::text[] @> proargnames
     ");
-    $get_proretset->execute($name, $argnames);
+    $get_proretset->execute($name, $argnames, $argnames);
 
     my $proretset;
-
-    my @sorted_query_input_argnames = sort @$argnames;
-    for (my $row_number=0; my $h = $get_proretset->fetchrow_hashref(); $row_number++) {
-        # check all functions having the query input arguments,
-        # but some of them might be OUT arguments,
-        # check if we can find exactly one function with the same
-        # IN or INOUT arguments.
-        my @function_input_arguments;
-        if (!defined $h->{proargmodes})
-        {
-            # only IN arguments
-            @function_input_arguments = @{$h->{proargnames}};
-        }
-        else
-        {
-            # sanity check
-            unless (@{$h->{proargnames}} == @{$h->{proargmodes}})
-            {
-                croak "proargnames and proargmodes and not of equal length";
-            }
-            for (my $i=0; $i < @{$h->{proargnames}}; $i++)
-            {
-                if ($h->{proargmodes}->[$i] =~ m/^[ib]$/)
-                {
-                    # IN or INOUT argument, add to list
-                    push @function_input_arguments, $h->{proargnames}->[$i];
-                }
-            }
-        }
-        my @sorted_function_input_arguments = sort @function_input_arguments;
-
-        if (@sorted_query_input_argnames == @sorted_function_input_arguments)
-        {
-            my $equal = 1;
-            for (my $i=0; $i<@sorted_query_input_argnames; $i++)
-            {
-                if ($sorted_query_input_argnames[$i] ne $sorted_function_input_arguments[$i])
-                {
-                    $equal = 0;
-                }
-            }
-            if ($equal == 1)
-            {
-                croak "multiple functions matches the same input arguments, function: $name" if defined $proretset;
-                $proretset = $h->{proretset};
-            }
-        }
+    my $i = 0;
+    while (my $h = $get_proretset->fetchrow_hashref()) {
+        $i++;
+        $proretset = $h;
     }
-    return $proretset;
+    if ($i == 0)
+    {
+        croak "no function matches the input arguments, function: $name";
+    }
+    elsif ($i == 1)
+    {
+        return $proretset->{proretset};
+    }
+    else
+    {
+        croak "multiple functions matches the same input arguments, function: $name";
+    }
 }
 
 sub call
@@ -181,8 +239,6 @@ sub call
 
     my $sql = 'SELECT * FROM ' . $name . '(' . $placeholders . ');';
 
-    # proretset=0 : Function returns 1 row
-    # proretset=1 : Function returns >=0 rows
     my $proretset = $self->_proretset($name, \@arg_names);
 
     my $query = $self->{dbh}->prepare($sql);

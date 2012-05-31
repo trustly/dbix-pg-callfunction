@@ -1,7 +1,7 @@
 
 
 This archive contains the distribution DBIx-Pg-CallFunction, version
-0.003:
+0.004:
 
   Simple interface for calling PostgreSQL functions from Perl
 

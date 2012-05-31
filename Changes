@@ -2,6 +2,16 @@
 
 Changes - List of significant changes to DBIx::Pg::CallFunction
 
+=head2 Changes in 0.004
+
+  Added test-case to check if error is thrown when multiple functions
+  matches.
+  Moved entire proretset check to SQL. Before the SQL only selected
+    candidate functions matching the arguments, while Perl filtered
+    out the OUT arguments and compared the arguments. Now it is all
+    done using SQL only.
+  Updated documentation, mention DBIx::ProcedureCall under SEE ALSO.
+
 =head2 Changes in 0.003
 
   No changes, but had to change version number to upload to PAUSE,

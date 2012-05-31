@@ -14,6 +14,8 @@ my $hosts = $pg->get_user_hosts({userid => 123});
 my $user_details = $pg->get_user_details({userid => 123});
 my $user_friends = $pg->get_user_friends({userid => 123});
 
+$pg->same_name_same_input_arguments({foo => 123});
+
 print Dumper $userid;
 print Dumper $hosts;
 print Dumper $user_details;
