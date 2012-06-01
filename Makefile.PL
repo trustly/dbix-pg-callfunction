@@ -16,7 +16,7 @@ my %WriteMakefileArgs = (
     'BUILD_REQUIRES' => {},
     'ABSTRACT' => 'DBIx::Pg::CallFunction',
     'EXE_FILES' => [],
-    'VERSION' => '0.005',
+    'VERSION' => '0.006',
     'PREREQ_PM' => {
         'DBI' => '1.605'
     },

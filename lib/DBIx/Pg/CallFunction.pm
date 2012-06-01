@@ -1,5 +1,5 @@
 package DBIx::Pg::CallFunction;
-our $VERSION = '0.005';
+our $VERSION = '0.006';
 
 =head1 NAME
 
@@ -7,7 +7,7 @@ DBIx::Pg::CallFunction - Simple interface for calling PostgreSQL functions from 
 
 =head1 VERSION
 
-version 0.005
+version 0.006
 
 =head1 SYNOPSIS
 
@@ -156,18 +156,6 @@ sub _proretset
             -- allowing us to select only the IN
             -- arguments and build new arrays.
             NamedInputArgumentFunctions AS (
-                -- For functions with only IN arguments,
-                -- proargmodes IS NULL
-                SELECT
-                    oid,
-                    proname,
-                    proretset,
-                    unnest(proargnames) AS proargname,
-                    'i'::text AS proargmode
-                FROM pg_catalog.pg_proc
-                WHERE proargnames IS NOT NULL
-                AND proargmodes IS NULL
-                UNION ALL
                 -- For functions with INOUT/OUT arguments,
                 -- proargmodes is an array where each
                 -- position matches proargname and
@@ -197,6 +185,17 @@ sub _proretset
                     oid,
                     proname,
                     proretset
+                UNION ALL
+                -- For functions with only IN arguments,
+                -- proargmodes IS NULL
+                SELECT
+                    oid,
+                    proname,
+                    proretset,
+                    proargnames
+                FROM pg_catalog.pg_proc
+                WHERE proargnames IS NOT NULL
+                AND proargmodes IS NULL
             )
             -- Find any function matching the name
             -- and having identical argument names
