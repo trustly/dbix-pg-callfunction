@@ -2,6 +2,12 @@
 
 Changes - List of significant changes to DBIx::Pg::CallFunction
 
+=head2 Changes in 0.005
+
+  Added Plack PSGI example on how to create a JSON-RPC server,
+  exposing the PostgreSQL database as a JSON-RPC service.
+  Added support for functions with no arguments.
+
 =head2 Changes in 0.004
 
   Added test-case to check if error is thrown when multiple functions

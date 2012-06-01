@@ -24,7 +24,7 @@ my $dbh = eval { DBI->connect("dbi:Pg:dbname=$dbname", undef, undef, { PrintErro
 $dbh->{pg_server_version} >= 90000
     or plan skip_all => "Requires PostgreSQL 9.0 or later";
 
-plan tests => 6;
+plan tests => 7;
 
 $dbh->do("drop function if exists get_userid_by_username(text)");
 $dbh->do("drop function if exists get_user_hosts(integer)");
@@ -42,7 +42,10 @@ $dbh->do($sql);
 
 my $pg = DBIx::Pg::CallFunction->new($dbh);
 
-my $userid = $pg->get_userid_by_username({'username' => 'joel'});
+my $now = $pg->random();
+like($now, qr/^0\.\d+$/, 'function with no arguments called okay');
+
+my $userid = $pg->get_userid_by_username({username => 'joel'});
 is($userid, 123, 'single-row single-column');
 
 my $hosts = $pg->get_user_hosts({userid => 123});
