@@ -7,6 +7,4 @@ This archive contains the distribution DBIx-Pg-CallFunction, version
 
 This software is copyright (c) 2012 by Joel Jacobson <joel@trustly.com>.
 
-This is free software; you can redistribute it and/or modify it under
-the same terms as the Perl 5 programming language system itself.
-
+This software is released under the MIT license.
