@@ -104,28 +104,40 @@ Install necessary packages
   sudo apt-get install postgresql-9.1 libplack-perl libdbd-pg-perl libjson-perl libmodule-install-perl libtest-exception-perl libapache2-mod-perl2
   sudo cpan DBIx::Pg::CallFunction
 
-Create database user for apache system user www-data
+Create a database and database user for our shell user
 
-  sudo -u postgres createuser -D -R -S www-data
+  sudo -u postgres createuser --no-superuser --no-createrole --no-createdb $USER
+  sudo -u postgres createdb --owner=$USER $USER
 
-Create a database owned by the www-data user
+Try to connect
 
-  sudo -u postgres createdb -O www-data test
+  psql -c "SELECT 'Hello world'"
+    ?column?   
+  -------------
+   Hello world
+  (1 row)
 
-Setup connection parameters for pg_proc_jsonrpc
-specifying the user is not necessary as it
-will default to the system user running apache,
-which is normally www-data.
+Create database user for apache
 
-  # copy sample config if you don't have it yet
-  sudo cp /usr/share/postgresql/9.1/pg_service.conf.sample /etc/postgresql-common/pg_service.conf
+  sudo -u postgres createuser --no-superuser --no-createrole --no-createdb www-data
 
-  # /etc/postgresql-common/pg_service.conf:
+Grant access to connect to our database
+
+  psql -c "GRANT CONNECT ON DATABASE $USER TO \"www-data\""
+
+Configure pg_service.conf
+
+  # copy sample config
+  sudo cp -n /usr/share/postgresql/9.1/pg_service.conf.sample /etc/postgresql-common/pg_service.conf
+
+  echo "
   [pg_proc_jsonrpc]
   application_name=pg_proc_jsonrpc
-  dbname=test
+  dbname=$USER
+  " | sudo sh -c 'cat - >> /etc/postgresql-common/pg_service.conf'
 
-Configure Apache, add location for pg_proc_jsonrpcd
+
+Configure Apache
 
   # Add the lines below between <VirtualHost *:80> and </VirtualHost>
   # to your sites-enabled file, or to the default file if this
@@ -146,16 +158,147 @@ Restart Apache
 
   service apache2 restart
 
+Done!
+
 You can now access PostgreSQL Stored Procedures at
-http://127.0.0.1/postgres using any JSON-RPC client
-or from a browser using Javascript.
+http://127.0.0.1/postgres using any JSON-RPC client,
+such as a web browser, some Perl program, or
+any application capable of talking HTTP.
+
+Let's try it with an example!
+
+Connect to our database using psql and copy/paste the SQL commands
+to create a simple schema with some Stored Procedures.
+
+Note the C<SECURITY DEFINER> below. It means the functions will
+be executed by the same rights as our C<$USER>, with full access
+to our database C<$USER>. The C<www-data> user is only granted
+C<EXECUTE> access to the functions, and cannot touch the tables
+using C<SELECT>, C<UPDATE>, C<INSERT> or C<DELETE> SQL commands.
+You can think of C<SECURITY DEFINER> as a sudo for SQL.
+
+  psql
+  
+  -- Some tables:
+  
+  CREATE TABLE users (
+  userid serial not null,
+  username text not null,
+  datestamp timestamptz not null default now(),
+  PRIMARY KEY (userid),
+  UNIQUE(username)
+  );
+  
+  CREATE TABLE usercomments (
+  usercommentid serial not null,
+  userid integer not null,
+  comment text not null,
+  datestamp timestamptz not null default now(),
+  PRIMARY KEY (usercommentid),
+  FOREIGN KEY (userid) REFERENCES Users(userid)
+  );
+  
+  -- Function to make a new comment
+  
+  CREATE OR REPLACE FUNCTION new_user_comment(_username text, _comment text) RETURNS BIGINT AS $$
+  DECLARE
+  _userid integer;
+  _usercommentid integer;
+  BEGIN
+  SELECT userid INTO _userid FROM users WHERE username = _username;
+  IF NOT FOUND THEN
+      INSERT INTO users (username) VALUES (_username) RETURNING userid INTO STRICT _userid;
+  END IF;
+  INSERT INTO usercomments (userid, comment) VALUES (_userid, _comment) RETURNING usercommentid INTO STRICT _usercommentid;
+  RETURN _usercommentid;
+  END;
+  $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+  -- Function to get all comments by a user
+
+  CREATE OR REPLACE FUNCTION get_user_comments(OUT usercommentid integer, OUT comment text, OUT datestamp timestamptz, _username text) RETURNS SETOF RECORD AS $$
+  SELECT
+      usercomments.usercommentid,
+      usercomments.comment,
+      usercomments.datestamp
+  FROM usercomments JOIN users USING (userid) WHERE users.username = $1
+  ORDER BY 1
+  $$ LANGUAGE sql SECURITY DEFINER;
+
+  -- Function to get all comments by all users
+
+  CREATE OR REPLACE FUNCTION get_all_comments(OUT usercommentid integer, OUT username text, OUT comment text, OUT datestamp timestamptz) RETURNS SETOF RECORD AS $$
+  SELECT
+      usercomments.usercommentid,
+      users.username,
+      usercomments.comment,
+      usercomments.datestamp
+  FROM usercomments JOIN users USING (userid)
+  ORDER BY 1
+  $$ LANGUAGE sql SECURITY DEFINER;
+  
+  -- Grant EXECUTE on the functions to www-data
+  
+  GRANT EXECUTE ON FUNCTION new_user_comment(_username text, _comment text) TO "www-data";
+  GRANT EXECUTE ON FUNCTION get_user_comments(OUT usercommentid integer, OUT comment text, OUT datestamp timestamptz, _username text) TO "www-data";
+  GRANT EXECUTE ON FUNCTION get_all_comments(OUT usercommentid integer, OUT username text, OUT comment text, OUT datestamp timestamptz) TO "www-data";
+
+The JSON-RPC service supports both GET and POST,
+let's try GET as it is easiest to test using a web browser.
+However, when developing for real ALWAYS use POST and
+set Content-Type to application/json.
+
+
+  http://127.0.0.1/postgres/new_user_comment?_username=joel&_comment=Accessing PostgreSQL from a browser is easy!
+  {
+     "error" : null,
+     "result" : "1"
+  }
+  
+  http://127.0.0.1/postgres/new_user_comment?_username=lukas&_comment=I must agree! Also easy from JQuery!
+  {
+     "error" : null,
+     "result" : "2"
+  }
+  
+  http://127.0.0.1/postgres/new_user_comment?_username=claes&_comment=Or using JSON::RPC::Simple :)
+  {
+     "error" : null,
+     "result" : "3"
+  }
+  
+  http://127.0.0.1/postgres/get_all_comments
+  {
+     "error" : null,
+     "result" : [
+        {
+           "usercommentid" : 1,
+           "comment" : "Accessing PostgreSQL from a browser is easy!",
+           "datestamp" : "2012-06-03 01:20:25.653989+07",
+           "username" : "joel"
+        },
+        {
+           "usercommentid" : 2,
+           "comment" : "I must agree! Also easy from JQuery!",
+           "datestamp" : "2012-06-03 01:21:30.19081+07",
+           "username" : "lukas"
+        },
+        {
+           "usercommentid" : 3,
+           "comment" : "Or using JSON::RPC::Simple :)",
+           "datestamp" : "2012-06-03 01:22:09.149454+07",
+           "username" : "claes"
+        }
+     ]
+  }
 
 =head1 DESCRIPTION
 
 C<pg_proc_jsonrpc> is a JSON-RPC daemon to access PostgreSQL stored procedures.
 
-The script implements the L<PSGI> standard and accepts the same parameters
-as the L<plackup> script.
+The script implements the L<PSGI> standard and can be started using
+the L<plackup> script, or by any webserver capable of handling PSGI files,
+such as Apache using L<Plack::Handler::Apache2>.
 
 It only supports named parameters, JSON-RPC version 1.1 or 2.0.
 
@@ -165,6 +308,6 @@ PostgreSQL stored procedure.
 
 =head1 SEE ALSO
 
-L<Plack::Runner> L<PSGI|PSGI> L<DBIx::Pg::CallFunction>
+L<plackup> L<Plack::Runner> L<PSGI|PSGI> L<DBIx::Pg::CallFunction>
 
 =cut

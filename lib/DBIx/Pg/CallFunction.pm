@@ -1,5 +1,5 @@
 package DBIx::Pg::CallFunction;
-our $VERSION = '0.006';
+our $VERSION = '0.007';
 use 5.008;
 
 =head1 NAME
@@ -8,7 +8,7 @@ DBIx::Pg::CallFunction - Simple interface for calling PostgreSQL functions from 
 
 =head1 VERSION
 
-version 0.006
+version 0.007
 
 =head1 SYNOPSIS
 
@@ -45,6 +45,8 @@ with from Perl code. It only support functions with named arguments, or
 functions with no arguments at all. This limitation reduces the mapping
 complexity, as multiple functions in PostgreSQL can share the same name,
 but with different input argument types.
+
+Please see L<pg_proc_jsonrpc.psgi> for an example on how to use this module.
 
 =head1 SEE ALSO
 

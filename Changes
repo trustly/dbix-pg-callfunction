@@ -2,6 +2,12 @@
 
 Changes - List of significant changes to DBIx::Pg::CallFunction
 
+=head2 Changes in 0.007
+  Changed pg_proc_jsonrpcd into a plain PSGI App
+    to let for e.g. Apache2, mod_perl and Plack::Handler::Apache2
+    handle the server task.
+  Added how-to on how to setup pg_proc_jsonrpc.psgi.
+
 =head2 Changes in 0.006
   Optimized _proretset SQL query
   Makefile.PL format changed to Module::Install
