@@ -7,6 +7,7 @@ use DBI;
 use DBD::Pg;
 use DBIx::Pg::CallFunction;
 use JSON;
+use Plack::Request;
 
 my $app = sub {
     my $env = shift;
