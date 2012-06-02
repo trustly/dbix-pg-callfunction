@@ -132,21 +132,23 @@ sub _proretset
     # "proretset" is short for procedure returns set.
     # If 1, the function returns multiple rows, or zero rows.
     # If 0, the function always returns exactly one row.
-    my ($self, $name, $argnames) = @_;
+    my ($self, $name, $argnames, $namespace) = @_;
 
     my $get_proretset;
     if (@$argnames == 0)
     {
         # no arguments
         $get_proretset = $self->{dbh}->prepare_cached("
-            SELECT proretset
+            SELECT pg_catalog.pg_proc.proretset
             FROM pg_catalog.pg_proc
-            WHERE proname = ?::text
-            AND proargnames IS NULL
-            AND proargmodes IS NULL
-            AND pronargs = 0
+            INNER JOIN pg_catalog.pg_namespace ON (pg_catalog.pg_namespace.oid = pg_catalog.pg_proc.pronamespace)
+            WHERE (?::text IS NULL OR pg_catalog.pg_namespace.nspname = ?::text)
+            AND pg_catalog.pg_proc.proname = ?::text
+            AND pg_catalog.pg_proc.proargnames IS NULL
+            AND pg_catalog.pg_proc.proargmodes IS NULL
+            AND pg_catalog.pg_proc.pronargs = 0
         ");
-        $get_proretset->execute($name);
+        $get_proretset->execute($namespace,$namespace,$name);
     }
     else
     {
@@ -163,14 +165,17 @@ sub _proretset
                 -- indicates if its an IN, OUT or INOUT
                 -- argument.
                 SELECT
-                    oid,
-                    proname,
-                    proretset,
-                    unnest(proargnames) AS proargname,
-                    unnest(proargmodes) AS proargmode
+                    pg_catalog.pg_proc.oid,
+                    pg_catalog.pg_proc.proname,
+                    pg_catalog.pg_proc.proretset,
+                    unnest(pg_catalog.pg_proc.proargnames) AS proargname,
+                    unnest(pg_catalog.pg_proc.proargmodes) AS proargmode
                 FROM pg_catalog.pg_proc
-                WHERE proargnames IS NOT NULL
-                AND proargmodes IS NOT NULL
+                INNER JOIN pg_catalog.pg_namespace ON (pg_catalog.pg_namespace.oid = pg_catalog.pg_proc.pronamespace)
+                WHERE (?::text IS NULL OR pg_catalog.pg_namespace.nspname = ?::text)
+                AND pg_catalog.pg_proc.proname = ?::text
+                AND pg_catalog.pg_proc.proargnames IS NOT NULL
+                AND pg_catalog.pg_proc.proargmodes IS NOT NULL
             ),
             OnlyINandINOUTArguments AS (
                 -- Select only the IN and INOUT
@@ -190,25 +195,26 @@ sub _proretset
                 -- For functions with only IN arguments,
                 -- proargmodes IS NULL
                 SELECT
-                    oid,
-                    proname,
-                    proretset,
-                    proargnames
+                    pg_catalog.pg_proc.oid,
+                    pg_catalog.pg_proc.proname,
+                    pg_catalog.pg_proc.proretset,
+                    pg_catalog.pg_proc.proargnames
                 FROM pg_catalog.pg_proc
-                WHERE proargnames IS NOT NULL
-                AND proargmodes IS NULL
+                INNER JOIN pg_catalog.pg_namespace ON (pg_catalog.pg_namespace.oid = pg_catalog.pg_proc.pronamespace)
+                WHERE (?::text IS NULL OR pg_catalog.pg_namespace.nspname = ?::text)
+                AND pg_catalog.pg_proc.proname = ?::text
+                AND pg_catalog.pg_proc.proargnames IS NOT NULL
+                AND pg_catalog.pg_proc.proargmodes IS NULL
             )
             -- Find any function matching the name
             -- and having identical argument names
             SELECT * FROM OnlyINandINOUTArguments
-            WHERE proname = ?::text
+            WHERE ?::text[] <@ proargnames AND ?::text[] @> proargnames
             -- The order of arguments doesn't matter,
             -- so compare the arrays by checking
             -- if A contains B and B contains A
-            AND ?::text[] <@ proargnames
-            AND ?::text[] @> proargnames
         ");
-        $get_proretset->execute($name, $argnames, $argnames);
+        $get_proretset->execute($namespace, $namespace, $name, $namespace, $namespace, $name, $argnames, $argnames);
     }
 
 
@@ -234,7 +240,7 @@ sub _proretset
 
 sub call
 {
-    my ($self,$name,$args) = @_;
+    my ($self,$name,$args,$namespace) = @_;
 
     my $validate_name_regex = qr/^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
@@ -244,6 +250,7 @@ sub call
     }
 
     croak "dbh and name must be defined" unless defined $self->{dbh} && defined $name;
+    croak "invalid format of namespace" unless !defined $namespace || $namespace =~ $validate_name_regex;
     croak "invalid format of name" unless $name =~ $validate_name_regex;
     croak "args must be a hashref" unless ref $args eq 'HASH';
 
@@ -260,9 +267,9 @@ sub call
 
     my $placeholders = join ",", map { "$_ := ?" } @arg_names;
 
-    my $sql = 'SELECT * FROM ' . $name . '(' . $placeholders . ');';
+    my $sql = 'SELECT * FROM ' . (defined $namespace ? "$namespace.$name" : $name) . '(' . $placeholders . ');';
 
-    my $proretset = $self->_proretset($name, \@arg_names);
+    my $proretset = $self->_proretset($name, \@arg_names, $namespace);
 
     my $query = $self->{dbh}->prepare($sql);
     $query->execute(@arg_values);

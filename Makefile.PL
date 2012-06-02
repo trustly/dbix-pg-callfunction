@@ -10,7 +10,6 @@ requires        'Carp'          => 0;
 test_requires   'Test::More'    => 0;
 
 recommends      'JSON'          => 0;
-recommends      'Plack::Runner' => 0;
-install_script  'scripts/pg_proc_jsonrpcd';
+install_script  'scripts/pg_proc_jsonrpc.psgi';
 
 WriteAll;
