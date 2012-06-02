@@ -22,7 +22,7 @@ my $app = sub {
                 message => 'Invalid Request.'
             },
             id => undef
-        }) ]
+        }, {pretty => 1}) ]
     ];
 
     my ($method, $params, $id, $version, $jsonrpc);
@@ -84,7 +84,7 @@ my $app = sub {
     return [
         '200',
         [ 'Content-Type' => 'application/json' ],
-        [ to_json($response) ]
+        [ to_json($response, {pretty => 1}) ]
     ];
 };
 
