@@ -14,7 +14,7 @@ my $app = sub {
 
     my $invalid_request = [
         '400',
-        [ 'Content-Type' => 'application/json' ],
+        [ 'Content-Type' => 'application/json; charset=utf-8' ],
         [ to_json({
             jsonrpc => '2.0',
             error => {
@@ -83,7 +83,7 @@ my $app = sub {
 
     return [
         '200',
-        [ 'Content-Type' => 'application/json' ],
+        [ 'Content-Type' => 'application/json; charset=utf-8' ],
         [ to_json($response, {pretty => 1}) ]
     ];
 };
