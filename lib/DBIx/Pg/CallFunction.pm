@@ -1,5 +1,6 @@
 package DBIx::Pg::CallFunction;
 our $VERSION = '0.006';
+use 5.008;
 
 =head1 NAME
 
@@ -64,7 +65,7 @@ Requires PostgreSQL 9.0 or later.
 Only supports stored procedures / functions with
 named input arguments.
 
-=head1 AUTHORS
+=head1 AUTHOR
 
 Joel Jacobson L<http://www.joelonsql.com>
 

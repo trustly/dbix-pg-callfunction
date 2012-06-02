@@ -1,33 +1,16 @@
-use strict;
-use warnings;
+use inc::Module::Install;
 
-use ExtUtils::MakeMaker 6.11;
+name            'DBIx-Pg-CallFunction';
+all_from        'lib/DBIx/Pg/CallFunction.pm';
 
-my %WriteMakefileArgs = (
-    'test' => {
-        'TESTS' => 't/*.t'
-    },
-    'NAME' => 'DBIx::Pg::CallFunction',
-    'DISTNAME' => 'DBIx-Pg-CallFunction',
-    'CONFIGURE_REQUIRES' => {
-        'ExtUtils::MakeMaker' => '6.11'
-    },
-    'AUTHOR' => 'Joel Jacobson <joel@trustly.com>',
-    'BUILD_REQUIRES' => {},
-    'ABSTRACT' => 'DBIx::Pg::CallFunction',
-    'EXE_FILES' => [],
-    'VERSION' => '0.006',
-    'PREREQ_PM' => {
-        'DBI' => '1.605'
-    },
-    'LICENSE' => 'mit'
-);
+license         'MIT';
+requires        'DBI'           => '1.605';
+requires        'DBD::Pg'       => 0;
+requires        'Carp'          => 0;
+test_requires   'Test::More'    => 0;
 
+recommends      'JSON'          => 0;
+recommends      'Plack::Runner' => 0;
+install_script  'scripts/pg_proc_jsonrpcd';
 
-delete $WriteMakefileArgs{LICENSE}
-    unless eval { ExtUtils::MakeMaker->VERSION(6.31) };
-
-WriteMakefile(%WriteMakefileArgs);
-
-
-
+WriteAll;

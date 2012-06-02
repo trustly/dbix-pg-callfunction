@@ -4,7 +4,7 @@ use warnings;
 use JSON::RPC::Simple;
 use Data::Dumper;
 
-my $pg = JSON::RPC::Simple->connect("http://127.0.0.1:8080/API/", {
+my $pg = JSON::RPC::Simple->connect("http://127.0.0.1:54321/API/", {
     timeout => 600,
 });
 

@@ -1,0 +1,147 @@
+#!/ur/bin/perl
+eval 'exec /usr/bin/perl  -S $0 ${1+"$@"}'
+    if 0; # not running under some shell
+use strict;
+use warnings;
+
+use Plack::Runner;
+use DBI;
+use DBD::Pg;
+use DBIx::Pg::CallFunction;
+use JSON;
+
+my $app = sub {
+    my $env = shift;
+
+    my $invalid_request = [
+        '400',
+        [ 'Content-Type' => 'application/json' ],
+        [ to_json({
+            jsonrpc => '2.0',
+            error => {
+                code => -32600,
+                message => 'Invalid Request.'
+            },
+            id => undef
+        }) ]
+    ];
+
+    unless ($env->{HTTP_ACCEPT}   eq 'application/json' &&
+           $env->{REQUEST_METHOD} eq 'POST' &&
+           $env->{CONTENT_TYPE}   =~ m!^application/json!
+    ) {
+        return $invalid_request;
+    }
+
+    my $json_input;
+    $env->{'psgi.input'}->read($json_input, $env->{CONTENT_LENGTH});
+
+    my $json_rpc_request = from_json($json_input);
+    my $method  = $json_rpc_request->{method};
+    my $params  = $json_rpc_request->{params};
+    my $id      = $json_rpc_request->{id};
+    my $version = $json_rpc_request->{version};
+    my $jsonrpc = $json_rpc_request->{jsonrpc};
+
+    unless ($method =~ m/^[a-zA-Z_][a-zA-Z0-9_]*/ && (!defined $params || ref($params) eq 'HASH')) {
+        return $invalid_request;
+    }
+
+    my $dbh = DBI->connect("dbi:Pg:service=pg_proc_jsonrpcd", '', '') or die "unable to connect to PostgreSQL";
+    my $pg = DBIx::Pg::CallFunction->new($dbh);
+    my $result = $pg->$method($params);
+    $dbh->disconnect;
+
+    my $response = {
+        result => $result,
+        error  => undef
+    };
+    if (defined $id) {
+        $response->{id} = $id;
+    }
+    if (defined $version && $version eq '1.1') {
+        $response->{version} = $version;
+    }
+    if (defined $jsonrpc && $jsonrpc eq '2.0') {
+        $response->{jsonrpc} = $jsonrpc;
+        delete $response->{error};
+    }
+
+    return [
+        '200',
+        [ 'Content-Type' => 'application/json' ],
+        [ to_json($response) ]
+    ];
+};
+
+my $runner = Plack::Runner->new;
+$runner->parse_options(@ARGV);
+
+eval {
+    # Make sure we can connect to PostgreSQL
+    my $dbh = DBI->connect("dbi:Pg:service=pg_proc_jsonrpcd", '', '', {RaiseError => 1});
+    $dbh->disconnect;
+};
+if ($@ =~ m/definition of service "pg_proc_jsonrpcd" not found/) {
+    die "Please add pg_proc_jsonrpcd to your pg_service.conf file.
+
+echo '
+[pg_proc_jsonrpcd]
+application_name=pg_proc_jsonrpcd
+' >> ~/.pg_service.conf
+
+# Or if you need to specify user/host/port:
+
+echo '
+[pg_proc_jsonrpcd]
+application_name=pg_proc_jsonrpcd
+dbname=mydatabase
+user=myuser
+host=127.0.0.1
+port=5432
+' >> ~/.pg_service.conf
+
+For a full list of connection parameters, please see:
+http://www.postgresql.org/docs/current/static/libpq-connect.html
+";
+} elsif ($@) {
+    die $@;
+}
+
+$runner->run($app);
+
+__END__
+
+=head1 NAME
+
+pg_proc_jsonrpcd - PostgreSQL Stored Procedures JSON-RPC Daemon
+
+=head1 SYNOPSIS
+
+  # add pg_proc_jsonrpcd to pg_service.conf
+  echo '
+  [pg_proc_jsonrpcd]
+  application_name=pg_proc_jsonrpcd
+  ' >> ~/.pg_service.conf
+
+  # start server
+  pg_proc_jsonrpcd -D --server Starman --port 54321 --host 127.0.0.1
+
+=head1 DESCRIPTION
+
+C<pg_proc_jsonrpcd> is a JSON-RPC daemon to access PostgreSQL stored procedures.
+
+The script implements the L<PSGI> standard and accepts the same parameters
+as the L<plackup> script.
+
+It only supports named parameters, JSON-RPC version 1.1 or 2.0.
+
+L<DBIx::Pg::CallFunction> is used to map
+method and params in the JSON-RPC call to the corresponding
+PostgreSQL stored procedure.
+
+=head1 SEE ALSO
+
+L<Plack::Runner> L<PSGI|PSGI> L<DBIx::Pg::CallFunction>
+
+=cut
