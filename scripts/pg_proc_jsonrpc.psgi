@@ -50,7 +50,7 @@ my $app = sub {
 
     unless ($method =~ m/
         ^
-        (
+        (?:
             ([a-zA-Z_][a-zA-Z0-9_]*) # namespace
         \.)?
         ([a-zA-Z_][a-zA-Z0-9_]*) # function name
@@ -60,7 +60,7 @@ my $app = sub {
     }
     my ($namespace, $function_name) = ($1, $2);
 
-    my $dbh = DBI->connect("dbi:Pg:service=pg_proc_jsonrpc", '', '') or die "unable to connect to PostgreSQL";
+    my $dbh = DBI->connect("dbi:Pg:service=pg_proc_jsonrpc", '', '', {pg_enable_utf8 => 1}) or die "unable to connect to PostgreSQL";
     my $pg = DBIx::Pg::CallFunction->new($dbh);
     my $result = $pg->call($function_name, $params, $namespace);
     $dbh->disconnect;
