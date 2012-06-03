@@ -63,7 +63,7 @@ my $app = sub {
 
     my $dbh = DBI->connect("dbi:Pg:service=pg_proc_jsonrpc", '', '', {pg_enable_utf8 => 1}) or die "unable to connect to PostgreSQL";
     my $pg = DBIx::Pg::CallFunction->new($dbh);
-    my $result = $pg->call($function_name, $params, $namespace);
+    my $result = $pg->$function_name($params, $namespace);
     $dbh->disconnect;
 
     my $response = {
