@@ -12,7 +12,7 @@
    "author" : [
       "Joel Jacobson <joel@trustly.com>"
    ],
-   "license" : "perl",
+   "license" : "MIT",
    "build_requires" : {},
    "requires" : {
       "DBI" : "1.605"
