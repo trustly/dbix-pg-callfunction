@@ -101,7 +101,7 @@ Instructions for a clean installation of Ubuntu 12.04 LTS.
 
 Install necessary packages
 
-  sudo apt-get install cpanminus build-essential postgresql-9.1 libplack-perl libdbd-pg-perl libjson-perl libmodule-install-perl libtest-exception-perl libapache2-mod-perl2
+  sudo apt-get install cpanminus build-essential postgresql-9.1 libplack-perl libdbd-pg-perl libjson-perl libmodule-install-perl libtest-exception-perl libapache2-mod-perl2 apache2-mpm-prefork
 
 Create a database and database user for our shell user
 
@@ -302,6 +302,9 @@ C<pg_proc_jsonrpc> is a JSON-RPC daemon to access PostgreSQL stored procedures.
 The script implements the L<PSGI> standard and can be started using
 the L<plackup> script, or by any webserver capable of handling PSGI files,
 such as Apache using L<Plack::Handler::Apache2>.
+
+As L<DBI> is not thread safe, you must not use threaded webservers,
+such as C<apache2-mpm-worker>, use instead e.g. C<apache2-mpm-prefork>.
 
 It only supports named parameters, JSON-RPC version 1.1 or 2.0.
 
