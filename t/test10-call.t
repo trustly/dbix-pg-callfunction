@@ -26,12 +26,16 @@ $dbh->{pg_server_version} >= 90000
 
 plan tests => 7;
 
+$dbh->begin_work;
+# silence "NOTICE: function does not exist, skipping"
+$dbh->do("set session client_min_message = warning");
 $dbh->do("drop function if exists get_userid_by_username(text)");
 $dbh->do("drop function if exists get_user_hosts(integer)");
 $dbh->do("drop function if exists get_user_details(integer)");
 $dbh->do("drop function if exists get_user_friends(integer)");
 $dbh->do("drop function if exists same_name_same_input_arguments(integer)");
 $dbh->do("drop function if exists same_name_same_input_arguments(text)");
+$dbh->commit;
 
 my $sql = do { # slurp!
     open my $fh, $sqlfile or die "Can't open $sqlfile: $!";

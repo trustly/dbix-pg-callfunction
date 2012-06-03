@@ -101,12 +101,11 @@ Instructions for a clean installation of Ubuntu 12.04 LTS.
 
 Install necessary packages
 
-  sudo apt-get install postgresql-9.1 libplack-perl libdbd-pg-perl libjson-perl libmodule-install-perl libtest-exception-perl libapache2-mod-perl2
-  sudo cpan DBIx::Pg::CallFunction
+  sudo apt-get install cpanminus build-essential postgresql-9.1 libplack-perl libdbd-pg-perl libjson-perl libmodule-install-perl libtest-exception-perl libapache2-mod-perl2
 
 Create a database and database user for our shell user
 
-  sudo -u postgres createuser --no-superuser --no-createrole --no-createdb $USER
+  sudo -u postgres createuser --no-superuser --no-createrole --createdb $USER
   sudo -u postgres createdb --owner=$USER $USER
 
 Try to connect
@@ -120,6 +119,10 @@ Try to connect
 Create database user for apache
 
   sudo -u postgres createuser --no-superuser --no-createrole --no-createdb www-data
+
+Download and build DBIx::Pg::CallFunction
+
+  cpanm --sudo DBIx::Pg::CallFunction
 
 Grant access to connect to our database
 
