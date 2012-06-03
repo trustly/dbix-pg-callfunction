@@ -2,6 +2,10 @@
 
 Changes - List of significant changes to DBIx::Pg::CallFunction
 
+=head2 Changes in 0.008
+  Updated Documentation and made the call method private,
+    renamed to _call.
+
 =head2 Changes in 0.007
   Changed pg_proc_jsonrpcd into a plain PSGI App
     to let for e.g. Apache2, mod_perl and Plack::Handler::Apache2
