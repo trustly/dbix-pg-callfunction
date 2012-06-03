@@ -252,19 +252,19 @@ However, when developing for real ALWAYS use POST and
 set Content-Type to application/json.
 
 
-  L<http://127.0.0.1/postgres/new_user_comment?_username=joel&_comment=Accessing PostgreSQL from a browser is easy!>
+  L<http://127.0.0.1/postgres/new_user_comment?_username=joel&_comment=Accessing+PostgreSQL+from+a+browser+is+easy!>
   {
      "error" : null,
      "result" : "1"
   }
   
-  L<http://127.0.0.1/postgres/new_user_comment?_username=lukas&_comment=I must agree! Also easy from JQuery!>
+  L<http://127.0.0.1/postgres/new_user_comment?_username=lukas&_comment=I+must+agree!+Also+easy+from+JQuery!>
   {
      "error" : null,
      "result" : "2"
   }
   
-  L<http://127.0.0.1/postgres/new_user_comment?_username=claes&_comment=Or using JSON::RPC::Simple>
+  L<http://127.0.0.1/postgres/new_user_comment?_username=claes&_comment=Or+using+JSON::RPC::Simple>
   {
      "error" : null,
      "result" : "3"
@@ -288,7 +288,7 @@ set Content-Type to application/json.
         },
         {
            "usercommentid" : 3,
-           "comment" : "Or using JSON::RPC::Simple :)",
+           "comment" : "Or using JSON::RPC::Simple",
            "datestamp" : "2012-06-03 01:22:09.149454+07",
            "username" : "claes"
         }
