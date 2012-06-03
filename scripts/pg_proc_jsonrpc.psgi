@@ -159,14 +159,14 @@ Configure Apache
 
 Restart Apache
 
-  service apache2 restart
+  sudo service apache2 restart
 
 Done!
 
-You can now access PostgreSQL Stored Procedures at
-http://127.0.0.1/postgres using any JSON-RPC client,
+You can now access PostgreSQL Stored Procedures, e.g.
+L<http://127.0.0.1/postgres/now> using any JSON-RPC client,
 such as a web browser, some Perl program, or
-any application capable of talking HTTP.
+any application capable of talking HTTP and JSON-RPC.
 
 Let's try it with an example!
 
@@ -252,25 +252,25 @@ However, when developing for real ALWAYS use POST and
 set Content-Type to application/json.
 
 
-  http://127.0.0.1/postgres/new_user_comment?_username=joel&_comment=Accessing PostgreSQL from a browser is easy!
+  L<http://127.0.0.1/postgres/new_user_comment?_username=joel&_comment=Accessing PostgreSQL from a browser is easy!>
   {
      "error" : null,
      "result" : "1"
   }
   
-  http://127.0.0.1/postgres/new_user_comment?_username=lukas&_comment=I must agree! Also easy from JQuery!
+  L<http://127.0.0.1/postgres/new_user_comment?_username=lukas&_comment=I must agree! Also easy from JQuery!>
   {
      "error" : null,
      "result" : "2"
   }
   
-  http://127.0.0.1/postgres/new_user_comment?_username=claes&_comment=Or using JSON::RPC::Simple :)
+  L<http://127.0.0.1/postgres/new_user_comment?_username=claes&_comment=Or using JSON::RPC::Simple>
   {
      "error" : null,
      "result" : "3"
   }
   
-  http://127.0.0.1/postgres/get_all_comments
+  L<http://127.0.0.1/postgres/get_all_comments>
   {
      "error" : null,
      "result" : [
