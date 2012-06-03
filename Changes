@@ -2,6 +2,12 @@
 
 Changes - List of significant changes to DBIx::Pg::CallFunction
 
+=head2 Changes in 0.010
+  Updated Documentation.
+
+=head2 Changes in 0.009
+  Updated Documentation.
+
 =head2 Changes in 0.008
   Updated Documentation and made the call method private,
     renamed to _call.
