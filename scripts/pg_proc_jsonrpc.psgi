@@ -201,6 +201,12 @@ You can think of C<SECURITY DEFINER> as a sudo for SQL.
   FOREIGN KEY (userid) REFERENCES Users(userid)
   );
   
+  -- By default, all users including www-data, will be able to execute any functions.
+  -- Revoke all access on functions from public, which allows us to explicitly grant
+  -- access only to those functions we wish to expose publicly.
+  
+  ALTER DEFAULT PRIVILEGES REVOKE ALL ON FUNCTIONS FROM PUBLIC;
+  
   -- Function to make a new comment
   
   CREATE OR REPLACE FUNCTION new_user_comment(_username text, _comment text) RETURNS BIGINT AS $$
