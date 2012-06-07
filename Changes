@@ -2,6 +2,13 @@
 
 Changes - List of significant changes to DBIx::Pg::CallFunction
 
+=head2 Changes in 0.011
+  Added ALTER DEFAULT PRIVILEGES REVOKE ALL ON FUNCTIONS FROM PUBLIC; to documentation,
+    to avoid granting access to stored procedures by default, which is not good when
+    you have functions with SECURITY DEFINER, better to grant execute rights
+    explicity for all functions.
+  Included inc/, necessary for users without Module::Install.
+
 =head2 Changes in 0.010
   Updated Documentation.
 

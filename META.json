@@ -7,7 +7,7 @@
       "url" : "http://module-build.sourceforge.net/META-spec-v1.4.html"
    },
    "generated_by" : "Dist::Zilla version 1.100660",
-   "version" : "0.010",
+   "version" : "0.011",
    "name" : "DBIx-Pg-CallFunction",
    "author" : [
       "Joel Jacobson <joel@trustly.com>"
