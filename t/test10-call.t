@@ -24,7 +24,7 @@ my $dbh = eval { DBI->connect("dbi:Pg:dbname=$dbname", undef, undef, { PrintErro
 $dbh->{pg_server_version} >= 90000
     or plan skip_all => "Requires PostgreSQL 9.0 or later";
 
-plan tests => 7;
+plan tests => 9;
 
 $dbh->begin_work;
 # silence "NOTICE: function does not exist, skipping"
@@ -69,6 +69,13 @@ ok(eq_array($user_friends, [
 throws_ok( sub{ $pg->same_name_same_input_arguments({foo => 123}) }, qr/multiple functions matches the same input arguments, function: same_name_same_input_arguments/, 'multiple function match caught okay' );
 
 throws_ok( sub{ $pg->i_do_not_exist({bar => 123}) }, qr/no function matches the input arguments, function: i_do_not_exist/, 'no function match caught okay' );
+
+$hosts = $pg->get_user_hosts({userid => 'off'});
+ok(! defined $hosts, 'With RaiseError off, an exception for invalid input syntax for integer is not thrown and the return value is undefined.');
+
+$dbh->{RaiseError} = 1;
+
+throws_ok( sub { $hosts = $pg->get_user_hosts({userid => 'on'}) }, qr/invalid input syntax for integer/, 'With RaiseError on, an exception for invalid input syntax for integer is thrown');
 
 END {
     $dbh->disconnect if $dbh;
