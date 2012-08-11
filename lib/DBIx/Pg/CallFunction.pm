@@ -294,8 +294,9 @@ sub _call
 
     my $proretset = $self->_proretset($name, \@arg_names, $namespace);
 
+    local $self->{dbh}->{RaiseError} = 0;
     my $query = $self->{dbh}->prepare($sql);
-    $query->execute(@arg_values);
+    $query->execute(@arg_values) or croak "Call to $name failed: $DBI::errstr";
 
     my $output;
     my $num_cols;
