@@ -2,6 +2,10 @@
 
 Changes - List of significant changes to DBIx::Pg::CallFunction
 
+=head2 Changes in 0.012
+  Use croak to report execute failures from the caller's perspective
+  with the name of the Pg function that was called. (Matthew Musgrove)
+
 =head2 Changes in 0.011
   Added ALTER DEFAULT PRIVILEGES REVOKE ALL ON FUNCTIONS FROM PUBLIC; to documentation,
     to avoid granting access to stored procedures by default, which is not good when
