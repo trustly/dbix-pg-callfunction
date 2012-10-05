@@ -1,5 +1,5 @@
 package DBIx::Pg::CallFunction;
-our $VERSION = '0.012';
+our $VERSION = '0.013';
 use 5.008;
 
 =head1 NAME
@@ -8,7 +8,7 @@ DBIx::Pg::CallFunction - Simple interface for calling PostgreSQL functions from 
 
 =head1 VERSION
 
-version 0.012
+version 0.013
 
 =head1 SYNOPSIS
 
@@ -195,8 +195,8 @@ sub _proretset
                     unnest(pg_catalog.pg_proc.proargmodes) AS proargmode
                 FROM pg_catalog.pg_proc
                 INNER JOIN pg_catalog.pg_namespace ON (pg_catalog.pg_namespace.oid = pg_catalog.pg_proc.pronamespace)
-                WHERE (?::text IS NULL OR pg_catalog.pg_namespace.nspname = ?::text)
-                AND pg_catalog.pg_proc.proname = ?::text
+                WHERE (?::name IS NULL OR pg_catalog.pg_namespace.nspname = ?::name)
+                AND pg_catalog.pg_proc.proname = ?::name
                 AND pg_catalog.pg_proc.proargnames IS NOT NULL
                 AND pg_catalog.pg_proc.proargmodes IS NOT NULL
             ),
@@ -224,8 +224,8 @@ sub _proretset
                     pg_catalog.pg_proc.proargnames
                 FROM pg_catalog.pg_proc
                 INNER JOIN pg_catalog.pg_namespace ON (pg_catalog.pg_namespace.oid = pg_catalog.pg_proc.pronamespace)
-                WHERE (?::text IS NULL OR pg_catalog.pg_namespace.nspname = ?::text)
-                AND pg_catalog.pg_proc.proname = ?::text
+                WHERE (?::name IS NULL OR pg_catalog.pg_namespace.nspname = ?::name)
+                AND pg_catalog.pg_proc.proname = ?::name
                 AND pg_catalog.pg_proc.proargnames IS NOT NULL
                 AND pg_catalog.pg_proc.proargmodes IS NULL
             )

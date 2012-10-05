@@ -2,6 +2,11 @@
 
 Changes - List of significant changes to DBIx::Pg::CallFunction
 
+=head2 Changes in 0.013
+  Use the correct datatype for comparisons against pg_proc.proname and
+  pg_namespace.nspname, allowing indexes on said tables to be used.
+  (Marko Tiikkaja)
+
 =head2 Changes in 0.012
   Use croak to report execute failures from the caller's perspective
   with the name of the Pg function that was called. (Matthew Musgrove)
