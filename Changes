@@ -2,6 +2,13 @@
 
 Changes - List of significant changes to DBIx::Pg::CallFunction
 
+=head2 Changes in 0.014
+  Support retrying a function call in some error cases.
+  (Marko Tiikkaja)
+
+  Retry on serialization failures and deadlocks in pg_proc_jsonrpc.
+  (Marko Tiikkaja)
+
 =head2 Changes in 0.013
   Use the correct datatype for comparisons against pg_proc.proname and
   pg_namespace.nspname, allowing indexes on said tables to be used.

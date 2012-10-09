@@ -7,7 +7,7 @@
       "url" : "http://module-build.sourceforge.net/META-spec-v1.4.html"
    },
    "generated_by" : "Dist::Zilla version 1.100660",
-   "version" : "0.013",
+   "version" : "0.014",
    "name" : "DBIx-Pg-CallFunction",
    "author" : [
       "Joel Jacobson <joel@trustly.com>"
@@ -15,7 +15,8 @@
    "license" : "MIT",
    "build_requires" : {},
    "requires" : {
-      "DBI" : "1.605"
+      "DBI" : "1.605",
+      "DBIx::Connector" : "0.52"
    },
    "abstract" : "Simple interface for calling PostgreSQL functions from Perl",
    "configure_requires" : {
