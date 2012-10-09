@@ -110,7 +110,7 @@ my $app = sub {
             }
 
             # if there's no reason to assume that retrying would help, exit the loop
-            last if scalar grep { $_ eq $pg->{SQLState} } @retryable_sqlstates == 0;
+            last if (scalar grep { $_ eq $pg->{SQLState} } @retryable_sqlstates) == 0;
 
             # sleep for a while and then retry
             print STDERR "ERROR SQLSTATE $pg->{SQLState};  retrying in $delay seconds\n";
