@@ -6,8 +6,15 @@ use warnings;
 use DBI;
 use DBD::Pg;
 use DBIx::Pg::CallFunction;
+use DBIx::Connector;
+use Time::HiRes;
 use JSON;
 use Plack::Request;
+
+# DBIx::Connector allows us to safely reuse connections by making sure that we
+# don't reuse DBI connections we inherited from our parent process after a
+# fork().
+my $dbconn = DBIx::Connector->new("dbi:Pg:service=pg_proc_jsonrpc", '', '', {pg_enable_utf8 => 1});
 
 my $app = sub {
     my $env = shift;
@@ -61,15 +68,70 @@ my $app = sub {
     }
     my ($namespace, $function_name) = ($1, $2);
 
-    my $dbh = DBI->connect("dbi:Pg:service=pg_proc_jsonrpc", '', '', {pg_enable_utf8 => 1}) or die "unable to connect to PostgreSQL";
-    my $pg = DBIx::Pg::CallFunction->new($dbh);
-    my $result = $pg->$function_name($params, $namespace);
-    $dbh->disconnect;
+    my $dbh;
+    my $pg;
+
+    my $result;
+
+    my $error = undef;
+    my $exception;
+    my $success;
+
+    # A list of SQLSTATEs which, after failure, have a reasonably good chance
+    # of succeeding if retried.  See
+    # http://www.postgresql.org/docs/current/static/errcodes-appendix.html for
+    # a list of error codes.
+    my @retryable_sqlstates = (
+                                "40001", # serialization failure
+                                "40P01"  # deadlock
+                              );
+    $success = 0;
+    $exception = not eval
+    {
+        # Ask for a connection from DBIx::Connector.  It is important to do this
+        # inside the  eval  in case the connection attempt fails so we can catch
+        # the error message and send that to the client.
+        $dbh = $dbconn->dbh;
+        $pg = DBIx::Pg::CallFunction->new($dbh, {RaiseError => 0});
+
+
+        # loop until we hit an error we can't recover from
+        my $delay = 0.1;
+        while ($delay <= 3.0)
+        {
+            $result = $pg->$function_name($params, $namespace);
+
+            # If the function succeeded but didn't return any results, $result
+            # will still be undef.  We need to check the actual SQLSTATE.
+            if ($pg->{SQLState} eq "00000")
+            {
+                $success = 1;
+                last;
+            }
+
+            # if there's no reason to assume that retrying would help, exit the loop
+            last if scalar grep { $_ eq $pg->{SQLState} } @retryable_sqlstates == 0;
+
+            # sleep for a while and then retry
+            print STDERR "ERROR SQLSTATE $pg->{SQLState};  retrying in $delay seconds\n";
+            Time::HiRes::sleep($delay);
+            $delay = $delay * 3;
+        }
+    };
+
+    # extract the appropriate error message if the function call didn't succeed
+    if ($exception) {
+        $error = $@;
+    }
+    elsif (!$success) {
+        $error = $pg->{SQLErrorMessage};
+    }
 
     my $response = {
         result => $result,
-        error  => undef
+        error  => $error
     };
+
     if (defined $id) {
         $response->{id} = $id;
     }
@@ -78,7 +140,11 @@ my $app = sub {
     }
     if (defined $jsonrpc && $jsonrpc eq '2.0') {
         $response->{jsonrpc} = $jsonrpc;
-        delete $response->{error};
+
+        # JSON-RPC 2.0 requires us to delete the "error" field on success and
+        # the "result" field on error.
+        delete $response->{error} if ($success);
+        delete $response->{result} if (!$success);
     }
 
     return [

@@ -134,8 +134,23 @@ sub new
     my $class = shift;
     my $self =
     {
-        dbh => shift
+        dbh => shift,
+		RaiseError => 1
     };
+
+	my $params = shift;
+	if (defined $params)
+	{
+		$self->{RaiseError} = delete $params->{RaiseError} if exists $params->{RaiseError};
+
+		# If there were any unrecognized parameters left, report one of them
+		if (scalar keys %{$params} > 0)
+		{
+			my $param = shift @{keys %{$params}};
+			croak "unrecognized parameter $param";
+		}
+	}
+
     bless $self, $class;
     return $self;
 }
@@ -296,7 +311,22 @@ sub _call
 
     local $self->{dbh}->{RaiseError} = 0;
     my $query = $self->{dbh}->prepare($sql);
-    $query->execute(@arg_values) or croak "Call to $name failed: $DBI::errstr";
+
+	# reset the error information
+	$self->{SQLState} = '00000';
+	$self->{SQLErrorMessage} = undef;
+	my $failed = !defined $query->execute(@arg_values);
+	if ($failed && $self->{RaiseError})
+	{
+		croak "Call to $name failed: $DBI::errstr";
+	}
+	elsif ($failed)
+	{
+		# if we failed but RaiseError wasn't set, let the caller deal with the problem
+		$self->{SQLState} = $query->state;
+		$self->{SQLErrorMessage} = $query->errstr;
+		return undef;
+	}
 
     my $output;
     my $num_cols;
