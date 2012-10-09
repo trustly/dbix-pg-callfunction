@@ -74,7 +74,6 @@ my $app = sub {
     my $result;
 
     my $error = undef;
-    my $exception;
     my $success;
 
     # A list of SQLSTATEs which, after failure, have a reasonably good chance
@@ -86,7 +85,7 @@ my $app = sub {
                                 "40P01"  # deadlock
                               );
     $success = 0;
-    $exception = not eval
+    eval
     {
         # Ask for a connection from DBIx::Connector.  It is important to do this
         # inside the  eval  in case the connection attempt fails so we can catch
@@ -120,7 +119,7 @@ my $app = sub {
     };
 
     # extract the appropriate error message if the function call didn't succeed
-    if ($exception) {
+    if ($@) {
         $error = $@;
     }
     elsif (!$success) {
