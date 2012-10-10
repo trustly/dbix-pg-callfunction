@@ -16,6 +16,11 @@ use Plack::Request;
 # fork().
 my $dbconn = DBIx::Connector->new("dbi:Pg:service=pg_proc_jsonrpc", '', '', {pg_enable_utf8 => 1});
 
+# We can simply pass undef as the database handle since we set it for every
+# request anyway.  Additionally, enable the lookup cache to avoid unnecessary
+# database roundtrips.
+my $pg = DBIx::Pg::CallFunction->new(undef, {RaiseError => 0, EnableFunctionLookupCache => 1});
+
 my $app = sub {
     my $env = shift;
 
@@ -69,7 +74,6 @@ my $app = sub {
     my ($namespace, $function_name) = ($1, $2);
 
     my $dbh;
-    my $pg;
 
     my $result;
 
@@ -91,8 +95,7 @@ my $app = sub {
         # inside the  eval  in case the connection attempt fails so we can catch
         # the error message and send that to the client.
         $dbh = $dbconn->dbh;
-        $pg = DBIx::Pg::CallFunction->new($dbh, {RaiseError => 0});
-
+        $pg->set_dbh($dbh);
 
         # loop until we hit an error we can't recover from
         my $delay = 0.1;

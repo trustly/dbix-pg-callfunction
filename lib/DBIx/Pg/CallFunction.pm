@@ -135,24 +135,34 @@ sub new
     my $self =
     {
         dbh => shift,
-		RaiseError => 1
+        RaiseError => 1,
+        EnableFunctionLookupCache => 0,
+
+        prosetret_cache => {}
     };
 
-	my $params = shift;
-	if (defined $params)
-	{
-		$self->{RaiseError} = delete $params->{RaiseError} if exists $params->{RaiseError};
+    my $params = shift;
+    if (defined $params)
+    {
+        $self->{RaiseError} = delete $params->{RaiseError} if exists $params->{RaiseError};
+        $self->{EnableFunctionLookupCache} = delete $params->{EnableFunctionLookupCache} if exists $params->{EnableFunctionLookupCache};
 
-		# If there were any unrecognized parameters left, report one of them
-		if (scalar keys %{$params} > 0)
-		{
-			my $param = shift @{keys %{$params}};
-			croak "unrecognized parameter $param";
-		}
-	}
+        # If there were any unrecognized parameters left, report one of them
+        if (scalar keys %{$params} > 0)
+        {
+            my $param = shift @{keys %{$params}};
+            croak "unrecognized parameter $param";
+        }
+    }
 
     bless $self, $class;
     return $self;
+}
+
+sub set_dbh
+{
+    my ($self, $dbh) = @_;
+    $self->{dbh} = $dbh;
 }
 
 sub AUTOLOAD
@@ -166,6 +176,33 @@ sub AUTOLOAD
     return $self->_call($name, $args, $namespace);
 }
 
+# Calculates a cache key for a function, given its signature.
+#
+# The caller should sort  $argnames  before passing them to us.
+sub _calculate_proretset_cache_key
+{
+    my ($self, $name, $argnames, $namespace) = @_;
+
+    return (defined $namespace ? $namespace : "").".".
+            $name."(".join(",", @{$argnames}).")";
+}
+
+
+# Because there is no way for us to do "proper" cache invalidation, we have to
+# rely on detecting the SQLSTATEs of the cases where the cache entry might be
+# stale.  Currently, these cases are:
+#
+#   1) A cached function gets dropped.  (SQLSTATE undefined_function)
+#   2) A new function with the same signature is introduced (SQLSTATE
+#      ambiguous_function)
+sub _invalidate_proretset_cache_entry
+{
+    my ($self, $name, $argnames, $namespace) = @_;
+
+    my $cachekey = $self->_calculate_proretset_cache_key($name, $argnames, $namespace);
+    delete $self->{proretset_cache}->{$cachekey};
+}
+
 sub _proretset
 {
     # Returns the value of pg_catalog.pg_proc.proretset for the function.
@@ -173,6 +210,19 @@ sub _proretset
     # If 1, the function returns multiple rows, or zero rows.
     # If 0, the function always returns exactly one row.
     my ($self, $name, $argnames, $namespace) = @_;
+
+    my $cachekey = undef;
+
+    # do a cache lookup if the caller asked for that
+    if ($self->{EnableFunctionLookupCache})
+    {
+        $cachekey = $self->_calculate_proretset_cache_key($name, $argnames, $namespace);
+        if (exists ($self->{proretset_cache}->{$cachekey}))
+        {
+            my $cached = $self->{proretset_cache}->{$cachekey};
+            return $cached;
+        }
+    }
 
     my $get_proretset;
     if (@$argnames == 0)
@@ -268,6 +318,10 @@ sub _proretset
     }
     elsif ($i == 1)
     {
+        # The function exists and can be called.  Add it to the cache if the
+        # caller has asked for caching.
+        $self->{proretset_cache}->{$cachekey} = $proretset->{proretset} if ($self->{EnableFunctionLookupCache});
+
         return $proretset->{proretset};
     }
     else
@@ -303,19 +357,44 @@ sub _call
         }
     }
 
-    my $placeholders = join ",", map { "$_ := ?" } @arg_names;
-
-    my $sql = 'SELECT * FROM ' . (defined $namespace ? "$namespace.$name" : $name) . '(' . $placeholders . ');';
-
     my $proretset = $self->_proretset($name, \@arg_names, $namespace);
+
+    my $placeholders = join ",", map { "$_ := ?" } @arg_names;
+    my $sql = 'SELECT * FROM ' . (defined $namespace ? "$namespace.$name" : $name) . '(' . $placeholders . ');';
 
     local $self->{dbh}->{RaiseError} = 0;
     my $query = $self->{dbh}->prepare($sql);
 
+
 	# reset the error information
 	$self->{SQLState} = '00000';
 	$self->{SQLErrorMessage} = undef;
+
 	my $failed = !defined $query->execute(@arg_values);
+
+    # Something went wrong.  This might mean that we need to invalidate the
+    # cache entry for this function.
+    if ($failed && $self->{EnableFunctionLookupCache})
+    {
+        # List of SQLSTATEs that warrant cache invalidation.  See
+        # _invalidate_proretset_cache_entry() for more information and
+        # http://www.postgresql.org/docs/current/static/errcodes-appendix.html
+        # for a list of error codes.
+        #
+        # Unfortunately there is no way to reliably tell whether our call or
+        # something in the function we called caused the error.  However, for
+        # our use case it doesn't really matter since in the worst case that
+        # would only mean unnecessary invalidations for functions that are
+        # already slow to run because they're broken.
+        my @sqlstates = (
+                            "42883", # undefined function
+                            "42725"  # ambiguous function
+                        );
+
+        $self->_invalidate_proretset_cache_entry($name, \@arg_names, $namespace)
+            if ((scalar grep { $_ eq $query->state } @sqlstates) > 0);
+    }
+
 	if ($failed && $self->{RaiseError})
 	{
 		croak "Call to $name failed: $DBI::errstr";

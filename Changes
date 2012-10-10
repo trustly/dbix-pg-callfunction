@@ -9,6 +9,10 @@ Changes - List of significant changes to DBIx::Pg::CallFunction
   Retry on serialization failures and deadlocks in pg_proc_jsonrpc.
   (Marko Tiikkaja)
 
+  Introduce an optional cache for function lookups and make pg_proc_jsonrpc use
+  it.
+  (Marko Tiikkaja)
+
 =head2 Changes in 0.013
   Use the correct datatype for comparisons against pg_proc.proname and
   pg_namespace.nspname, allowing indexes on said tables to be used.
