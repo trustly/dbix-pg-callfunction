@@ -13,7 +13,6 @@ meta-spec:
 name: DBIx-Pg-CallFunction
 requires:
   DBI: 1.605
-  DBIx::Connector 0.52
 resources:
   repository: git@github.com:joelonsql/dbix-pg-callfunction.git
 version: 0.014

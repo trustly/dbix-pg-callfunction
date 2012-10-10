@@ -16,7 +16,6 @@
    "build_requires" : {},
    "requires" : {
       "DBI" : "1.605",
-      "DBIx::Connector" : "0.52"
    },
    "abstract" : "Simple interface for calling PostgreSQL functions from Perl",
    "configure_requires" : {

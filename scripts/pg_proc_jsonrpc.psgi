@@ -189,6 +189,10 @@ Download and build DBIx::Pg::CallFunction
 
   cpanm --sudo DBIx::Pg::CallFunction
 
+Download and build DBIx::Connector
+
+  cpanm --sudo DBIx::Pg::Connector
+
 Grant access to connect to our database
 
   psql -c "GRANT CONNECT ON DATABASE $USER TO \"www-data\""
@@ -381,10 +385,11 @@ It only supports named parameters, JSON-RPC version 1.1 or 2.0.
 
 L<DBIx::Pg::CallFunction> is used to map
 method and params in the JSON-RPC call to the corresponding
-PostgreSQL stored procedure.
+PostgreSQL stored procedure.  DBIx::Connector is used to safely
+maintain database connections across requests.
 
 =head1 SEE ALSO
 
-L<plackup> L<Plack::Runner> L<PSGI|PSGI> L<DBIx::Pg::CallFunction>
+L<plackup> L<Plack::Runner> L<PSGI|PSGI> L<DBIx::Pg::CallFunction> L<DBIx::Connector>
 
 =cut
