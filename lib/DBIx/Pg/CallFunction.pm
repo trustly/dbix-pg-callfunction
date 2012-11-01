@@ -372,8 +372,8 @@ sub _call
 
 	my $failed = !defined $query->execute(@arg_values);
 
-    # Something went wrong.  This might mean that we need to invalidate the
-    # cache entry for this function.
+    # If something went wrong, we might have to invalidate the cache entry for
+    # this function.
     if ($failed && $self->{EnableFunctionLookupCache})
     {
         # List of SQLSTATEs that warrant cache invalidation.  See
@@ -394,6 +394,7 @@ sub _call
         $self->_invalidate_proretset_cache_entry($name, \@arg_names, $namespace)
             if ((scalar grep { $_ eq $query->state } @sqlstates) > 0);
     }
+
 
 	if ($failed && $self->{RaiseError})
 	{
