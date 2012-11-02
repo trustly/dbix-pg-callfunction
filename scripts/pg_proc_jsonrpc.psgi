@@ -93,15 +93,40 @@ my $app = sub {
     {
         # Ask for a connection from DBIx::Connector.  It is important to do this
         # inside the  eval  in case the connection attempt fails so we can catch
-        # the error message and send that to the client.
+        # the error message and send that to the client.  Note: it is important
+		# to use _dbh instead of dbh here because of reasons explained below.
         $dbh = $dbconn->dbh;
+		# if there's no connection, we're done
+		die $DBI::errstr if (!defined($dbh));
         $pg->set_dbh($dbh);
+
+		# $dbconn->dbh calls $dbh->ping() every time, and there's no reason to do
+		# that, so we do the following instead: we keep getting the connection
+		# from _dbh so long as queries work correctly on that connection.  If,
+		# for some reason, a query does not work on that connection and we get
+		# back an SQLSTATE suggesting that the connection might be broken, we
+		# call dbh to go through the entire ping/reconnect procedure and retry
+		# the loop immediately.  Because we skip the delay, we only allow that
+		# to happen once per loop.
+		my $retried_connection = 0;
 
         # loop until we hit an error we can't recover from
         my $delay = 0.1;
         while ($delay <= 3.0)
         {
             $result = $pg->$function_name($params, $namespace);
+
+			if (!$retried_connection &&
+					($pg->{SQLState} eq "08000" ||
+					 $pg->{SQLState} eq "57P01" ||
+					 $pg->{SQLState} eq "57P02"))
+			{
+				$retried_connection = 1;
+            	print STDERR "ERROR SQLSTATE $pg->{SQLState};  re-establishing connection\n";
+				$dbh = $dbconn->dbh;
+				$pg->set_dbh($dbh);
+				next;
+			}
 
             # If the function succeeded but didn't return any results, $result
             # will still be undef.  We need to check the actual SQLSTATE.
