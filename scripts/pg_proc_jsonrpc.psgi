@@ -21,6 +21,17 @@ my $dbconn = DBIx::Connector->new("dbi:Pg:service=pg_proc_jsonrpc", '', '', {pg_
 # database roundtrips.
 my $pg = DBIx::Pg::CallFunction->new(undef, {RaiseError => 0, EnableFunctionLookupCache => 1});
 
+my $callback = undef;
+if (defined((my $modulename = $ENV{PG_PROC_JSONRPC_TRANSLATOR_CALLBACK})))
+{
+    $callback = do $modulename;
+    if (!defined($callback))
+    {
+        print STDERR "Could not load callback \"$modulename\": $!\n";
+    }
+}
+
+
 my $app = sub {
     my $env = shift;
 
@@ -82,18 +93,6 @@ my $app = sub {
         return $invalid_request;
     }
 
-    unless ($method =~ m/
-        ^
-        (?:
-            ([a-zA-Z_][a-zA-Z0-9_]*) # namespace
-        \.)?
-        ([a-zA-Z_][a-zA-Z0-9_]*) # function name
-        $
-    /x && (!defined $params || ref($params) eq 'HASH')) {
-        return $invalid_request;
-    }
-    my ($namespace, $function_name) = ($1, $2);
-
     my $dbh;
 
     my $result;
@@ -112,6 +111,23 @@ my $app = sub {
     $success = 0;
     eval
     {
+        # Allow an external mapper callback to do its work here
+        if (defined($callback))
+        {
+            $method = $callback->($method, $params, $dbconn);
+        }
+
+        return $invalid_request
+            unless ($method =~ m/
+                ^
+                    (?:
+                    ([a-zA-Z_][a-zA-Z0-9_]*) # namespace
+                    \.)?
+                    ([a-zA-Z_][a-zA-Z0-9_]*) # function name
+                $
+                /x && (!defined $params || ref($params) eq 'HASH'));
+        my ($namespace, $function_name) = ($1, $2);
+
         # Ask for a connection from DBIx::Connector.  It is important to do this
         # inside the  eval  in case the connection attempt fails so we can catch
         # the error message and send that to the client.  Note: it is important
