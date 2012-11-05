@@ -37,7 +37,7 @@ my $app = sub {
         }, {pretty => 1}) ]
     ];
 
-    my ($method, $params, $id, $version, $jsonrpc);
+    my ($method, $params, $id, $version);
     if ($env->{REQUEST_METHOD} eq 'GET') {
         my $req = Plack::Request->new($env);
         $method = $req->path_info;
@@ -49,6 +49,7 @@ my $app = sub {
         $env->{CONTENT_TYPE} =~ m!^application/json!
     ) {
         my $json_input;
+        my $jsonrpc;
         $env->{'psgi.input'}->read($json_input, $env->{CONTENT_LENGTH});
         my $json_rpc_request = from_json($json_input);
 
@@ -57,6 +58,26 @@ my $app = sub {
         $id      = $json_rpc_request->{id};
         $version = $json_rpc_request->{version};
         $jsonrpc = $json_rpc_request->{jsonrpc};
+
+        # must be version 2.0 if "jsonrpc" is defined
+        if (defined $jsonrpc)
+        {
+            return $invalid_request if ($jsonrpc ne '2.0');
+            return $invalid_request if (defined $version);
+            $version = '2.0';
+        }
+        
+        # assume 1.0 if "version" is not defined
+        if (!defined $version)
+        {
+            $version = 1.0;
+        }
+
+        if (!($version eq '1.0' || $version eq '1.1' || $version eq '2.0'))
+        {
+            # unsupported version
+            return $invalid_request;
+        }
     } else {
         return $invalid_request;
     }
@@ -162,16 +183,24 @@ my $app = sub {
     if (defined $id) {
         $response->{id} = $id;
     }
-    if (defined $version && $version eq '1.1') {
+    if ($version eq '1.1') {
         $response->{version} = $version;
     }
-    if (defined $jsonrpc && $jsonrpc eq '2.0') {
-        $response->{jsonrpc} = $jsonrpc;
+    if ($version eq '2.0') {
+        $response->{jsonrpc} = $version;
+    }
 
-        # JSON-RPC 2.0 requires us to delete the "error" field on success and
-        # the "result" field on error.
+    if ($version eq '1.1' || $version eq '2.0') {
+        # JSON-RPC 1.1 and 2.0 requires us to delete the "error" field on success and
+        # the "result" field on error.  Additionally, the "error" field is an object.
         delete $response->{error} if ($success);
-        delete $response->{result} if (!$success);
+
+        if (!$success)
+        {
+            delete $response->{result};
+            my $errobj = { code => -32000, message => $response->{error} };
+            $response->{error} = $errobj;
+        }
     }
 
     return [

@@ -3,6 +3,9 @@
 Changes - List of significant changes to DBIx::Pg::CallFunction
 
 =head2 Changes in 0.014
+  Correctly use an error object in JSON-RPC versions 1.1 and 2.0 in
+  pg_proc_jsonrpc.
+
   Support retrying a function call in some error cases.
   (Marko Tiikkaja)
 
