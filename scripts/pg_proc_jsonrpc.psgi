@@ -10,6 +10,7 @@ use DBIx::Connector;
 use Time::HiRes;
 use JSON;
 use Plack::Request;
+use Regexp::Common qw(net delimited);
 
 # DBIx::Connector allows us to safely reuse connections by making sure that we
 # don't reuse DBI connections we inherited from our parent process after a
@@ -31,6 +32,33 @@ if (defined((my $modulename = $ENV{PG_PROC_JSONRPC_TRANSLATOR_CALLBACK})))
     }
 }
 
+sub is_internal_ip
+{
+    my $ip = shift;
+
+    return 1 if $ip eq "127.0.0.1"; # localhost
+    return 1 if $ip eq "83.140.44.183"; # www.gluefinance.com
+    return 1 if $ip =~ m{^93\.158\.127\.\d+}; # www-vrt.gluefinance.com
+    return 1 if $ip =~ m{^10\.1\.1\.\d+};
+
+    return 0;
+}
+
+sub get_host
+{
+    my $env = shift;
+
+    my $remote_addr = $env->{REMOTE_ADDR};
+    
+    if (is_internal_ip($remote_addr))
+    {
+        my $x_forwarded_for = $env->{HTTP_X_FORWARDED_FOR};
+        return $x_forwarded_for if $x_forwarded_for =~ /($RE{net}{IPv4})$/;
+        # if x-forwarded-for is not available, just return REMOTE_ADDR
+    }
+
+    return $remote_addr;
+}
 
 my $app = sub {
     my $env = shift;
@@ -114,7 +142,8 @@ my $app = sub {
         # Allow an external mapper callback to do its work here
         if (defined($callback))
         {
-            $method = $callback->($method, $params, $dbconn);
+            my $host = get_host($env);
+            $method = $callback->($method, $params, $dbconn, $host);
         }
 
         return $invalid_request
