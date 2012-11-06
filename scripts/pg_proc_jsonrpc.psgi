@@ -84,7 +84,7 @@ my $app = sub {
         $params = $req->query_parameters->mixed;
 
     } elsif ($env->{REQUEST_METHOD} eq 'POST' &&
-        $env->{HTTP_ACCEPT} eq 'application/json' &&
+        $env->{HTTP_ACCEPT} =~ m!application/json! &&
         $env->{CONTENT_TYPE} =~ m!^application/json!
     ) {
         my $json_input;
