@@ -12,6 +12,10 @@ use JSON;
 use Plack::Request;
 use Regexp::Common qw(net delimited);
 
+use Data::Dumper;
+
+require TrustlyApiMapper;
+
 # DBIx::Connector allows us to safely reuse connections by making sure that we
 # don't reuse DBI connections we inherited from our parent process after a
 # fork().
@@ -21,16 +25,6 @@ my $dbconn = DBIx::Connector->new("dbi:Pg:service=pg_proc_jsonrpc", '', '', {pg_
 # request anyway.  Additionally, enable the lookup cache to avoid unnecessary
 # database roundtrips.
 my $pg = DBIx::Pg::CallFunction->new(undef, {RaiseError => 0, EnableFunctionLookupCache => 1});
-
-my $callback = undef;
-if (defined((my $modulename = $ENV{PG_PROC_JSONRPC_TRANSLATOR_CALLBACK})))
-{
-    $callback = do $modulename;
-    if (!defined($callback))
-    {
-        print STDERR "Could not load callback \"$modulename\": $!\n";
-    }
-}
 
 sub is_internal_ip
 {
@@ -62,6 +56,7 @@ sub get_host
 
 my $app = sub {
     my $env = shift;
+    my $method_call;
 
     my $invalid_request = [
         '400',
@@ -83,6 +78,12 @@ my $app = sub {
         $method =~ s{^.*/}{};
         $params = $req->query_parameters->mixed;
 
+        $method_call =
+            {
+                method  => $method,
+                params  => $params,
+                id      => 1
+            };
     } elsif ($env->{REQUEST_METHOD} eq 'POST' &&
         $env->{HTTP_ACCEPT} =~ m!application/json! &&
         $env->{CONTENT_TYPE} =~ m!^application/json!
@@ -92,9 +93,13 @@ my $app = sub {
         $env->{'psgi.input'}->read($json_input, $env->{CONTENT_LENGTH});
         my $json_rpc_request = from_json($json_input);
 
-        $method  = $json_rpc_request->{method};
-        $params  = $json_rpc_request->{params};
-        $id      = $json_rpc_request->{id};
+        $method_call =
+            {
+                method  => $json_rpc_request->{method},
+                params  => $json_rpc_request->{params},
+                id      => $json_rpc_request->{id}
+            };
+
         $version = $json_rpc_request->{version};
         $jsonrpc = $json_rpc_request->{jsonrpc};
 
@@ -139,23 +144,9 @@ my $app = sub {
     $success = 0;
     eval
     {
-        # Allow an external mapper callback to do its work here
-        if (defined($callback))
-        {
-            my $host = get_host($env);
-            $method = $callback->($method, $params, $dbconn, $host);
-        }
-
-        return $invalid_request
-            unless ($method =~ m/
-                ^
-                    (?:
-                    ([a-zA-Z_][a-zA-Z0-9_]*) # namespace
-                    \.)?
-                    ([a-zA-Z_][a-zA-Z0-9_]*) # function name
-                $
-                /x && (!defined $params || ref($params) eq 'HASH'));
-        my ($namespace, $function_name) = ($1, $2);
+        # Now map the API method call into a database function call
+        my $host = get_host($env);
+        my $function_call = TrustlyApiMapper::api_method_call_mapper($method_call, $dbconn, $host);
 
         # Ask for a connection from DBIx::Connector.  It is important to do this
         # inside the  eval  in case the connection attempt fails so we can catch
@@ -180,7 +171,8 @@ my $app = sub {
         my $delay = 0.1;
         while ($delay <= 3.0)
         {
-            $result = $pg->$function_name($params, $namespace);
+            my $proname = $function_call->{proname};
+            $result = $pg->$proname($function_call->{params}, $function_call->{nspname});
 
 			if (!$retried_connection &&
 					($pg->{SQLState} eq "08000" ||
