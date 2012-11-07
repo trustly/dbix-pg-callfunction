@@ -118,7 +118,7 @@ my $app = sub {
     eval
     {
         # Now map the API method call into a database function call
-        my $host = get_host($env);
+        my $host = _get_host($env);
         my $function_call = TrustlyApiMapper::api_method_call_mapper($method_call, $dbconn, $host);
 
         # Ask for a connection from DBIx::Connector.  It is important to do this
@@ -221,15 +221,15 @@ my $app = sub {
 };
 
 
-# Return either REMOTE_ADDR, or for internal IP addresses (see is_internal_ip),
+# Return either REMOTE_ADDR, or for internal IP addresses (see _is_internal_ip),
 # return the HTTP X-Forwarded-For header.
-sub get_host
+sub _get_host
 {
     my $env = shift;
 
     my $remote_addr = $env->{REMOTE_ADDR};
     
-    if (is_internal_ip($remote_addr))
+    if (_is_internal_ip($remote_addr))
     {
         my $x_forwarded_for = $env->{HTTP_X_FORWARDED_FOR};
         return $x_forwarded_for if $x_forwarded_for =~ /($RE{net}{IPv4})$/;
@@ -240,7 +240,7 @@ sub get_host
 }
 
 # Return 1 if the given argument is an internal IP, 0 otherwise
-sub is_internal_ip
+sub _is_internal_ip
 {
     my $ip = shift;
 
