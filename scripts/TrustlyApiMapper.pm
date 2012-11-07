@@ -113,8 +113,13 @@ JOIN
 sub _get_special_handler
 {
     my ($method, $params, $host) = @_;
+    my @paramlist = keys %{$params};
 
-    if ($method eq 'GetViewParams')
+    if (_compare_signature($method, \@paramlist,
+                           'GetViewParams', [ qw(_username _password _viewname
+                                                 _offset _datestamp _dateorder
+                                                 _limit _sortby _sortorder
+                                                 _filterkeys _params) ]))
     {
         $params->{_host} = $host;
         return {
@@ -139,7 +144,8 @@ sub api_method_call_postprocessing
         my $datestamp;
         my @report;
 
-        eval {
+        eval 
+        {
             my $ret = Storable::thaw(MIME::Base64::decode_base64($result));
             return undef unless ref $ret eq "ARRAY";
 
@@ -242,11 +248,21 @@ sub api_method_call_mapper
            };
 }
 
+
 # Calculate a cache key for a method call, given its signature.
 sub _calculate_api_method_cache_key
 {
     my ($proname, $argnames) = @_;
     return $proname."(".join(",", sort @{$argnames}).")";
+}
+
+# Compare signatures of two method calls.  Uses _calculate_api_method_cache_key
+sub _compare_signature
+{
+    my ($a, $aparams, $b, $bparams) = @_;
+
+    return _calculate_api_method_cache_key($a, $aparams) eq
+           _calculate_api_method_cache_key($b, $bparams);
 }
 
 END
