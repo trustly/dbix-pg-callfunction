@@ -131,9 +131,10 @@ sub api_method_call_mapper
     }
 
     # if this API method is cached, return it now
-    if (exists($api_method_cache{$method}))
+    my $cache_key = _calculate_api_method_cache_key($method, \@old_param_list);
+    if (exists($api_method_cache{$cache_key}))
     {
-        my $cache_entry = $api_method_cache{$method};
+        my $cache_entry = $api_method_cache{$cache_key};
         # inject host if necessary
         $params->{_host} = $host if ($cache_entry->{requirehost});
 
@@ -160,7 +161,7 @@ sub api_method_call_mapper
     die "internal error" if defined($sth->fetchrow_hashref);
 
     my $requirehost = $data->{requirehost};
-    $api_method_cache{$method} =
+    $api_method_cache{$cache_key} =
         {
             proname     => $data->{proname},
             nspname     => $data->{nspname},
@@ -175,6 +176,13 @@ sub api_method_call_mapper
                 nspname => $data->{nspname},
                 params  => $params
            };
+}
+
+# Calculate a cache key for a method call, given its signature.
+sub _calculate_api_method_cache_key
+{
+    my ($proname, $argnames) = @_;
+    return $proname."(".join(",", sort @{$argnames}).")";
 }
 
 END
