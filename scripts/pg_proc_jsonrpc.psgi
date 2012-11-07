@@ -232,7 +232,7 @@ sub _get_host
     if (_is_internal_ip($remote_addr))
     {
         my $x_forwarded_for = $env->{HTTP_X_FORWARDED_FOR};
-        return $x_forwarded_for if $x_forwarded_for =~ /($RE{net}{IPv4})$/;
+        return $x_forwarded_for if (defined($x_forwarded_for) && $x_forwarded_for =~ /($RE{net}{IPv4})$/);
         # if x-forwarded-for is not available, just return REMOTE_ADDR
     }
 
