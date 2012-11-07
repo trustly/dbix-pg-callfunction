@@ -6,6 +6,8 @@ use warnings;
 use DBI;
 use DBD::Pg;
 use DBIx::Connector;
+use Storable qw();
+use MIME::Base64 qw(decode_base64);
 
 package TrustlyApiMapper;
 
@@ -14,7 +16,7 @@ BEGIN
     require Exporter;
     our $VERSION = 1.00;
     our @ISA = qw(Exporter);
-    our @EXPORT = qw(api_method_call_mapper);
+    our @EXPORT = qw(api_method_call_mapper api_method_call_postprocessing);
 }
 
 my $sql_query = q{
@@ -108,6 +110,64 @@ JOIN
 ;
 };
 
+sub _get_special_handler
+{
+    my ($method, $params, $host) = @_;
+
+    if ($method eq 'GetViewParams')
+    {
+        $params->{_host} = $host;
+        return {
+                    proname => 'get_view',
+                    nspname => undef,
+                    params  => $params 
+               };
+    }
+
+    return undef;
+}
+
+sub api_method_call_postprocessing
+{
+    my ($method_call, $result) = @_;
+
+    my $method = $method_call->{method};
+    my $params = $method_call->{params};
+
+    if ($method eq 'GetViewParams')
+    {
+        my $datestamp;
+        my @report;
+
+        eval {
+            my $ret = Storable::thaw(MIME::Base64::decode_base64($result));
+            return undef unless ref $ret eq "ARRAY";
+
+            $datestamp = shift @$ret;
+            my $keys = shift @$ret;
+            foreach my $row (@$ret) {
+                my %pack;
+                my $i = 0;
+                foreach my $col ( @$row ) {
+                    $pack{$keys->[$i]} = $col;
+                    $i++;
+                }
+                push @report, \%pack;
+            }
+        };
+
+        die $@ if $@;
+            
+        return {
+            now  => $datestamp,
+            data => \@report,
+        };            
+    }
+
+    # no special handler, just return whatever we got from the database
+    return $result;
+}
+
 my %api_method_cache = ();
 
 sub api_method_call_mapper
@@ -126,6 +186,12 @@ sub api_method_call_mapper
         $param = "_".$param if ($param !~ "^_");
         $params->{$param} = $params->{$old_param};
         delete $params->{$old_param};
+    }
+
+    # see if there's a special handler for this method call
+    if ((my $function_call = _get_special_handler($method, $params, $host)))
+    {
+        return $function_call;
     }
 
     # if this API method is cached, return it now

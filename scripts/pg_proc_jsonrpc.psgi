@@ -163,6 +163,11 @@ my $app = sub {
             # will still be undef.  We need to check the actual SQLSTATE.
             if ($pg->{SQLState} eq "00000")
             {
+                # Everything went well, but we still need to allow the mapper to do
+                # special post-processing for some method calls.  We want to do this
+                # inside eval to catch any exceptions.
+
+                $result = TrustlyApiMapper::api_method_call_postprocessing($method_call, $result);
                 $success = 1;
                 last;
             }
