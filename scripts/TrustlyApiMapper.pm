@@ -121,6 +121,13 @@ sub _get_special_handler
                                                  _limit _sortby _sortorder
                                                  _filterkeys _params) ]))
     {
+        # convert the params from a hashref into a list
+        my $converted_params = [];
+        foreach my $k (keys %{$params->{_params}} ) {
+            push @$converted_params, [$k, $params->{_params}->{$k}];
+        }
+        $params->{_params} = $converted_params;
+
         $params->{_host} = $host;
         return {
                     proname => 'get_view',
