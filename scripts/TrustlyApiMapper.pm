@@ -122,12 +122,10 @@ sub api_method_call_mapper
     my @old_param_list = keys(%{$params});
     foreach my $old_param (@old_param_list)
     {
-        if ($old_param !~ "^_")
-        {
-            my $new_param = "_".$old_param;
-            $params->{$new_param} = $params->{$old_param};
-            delete $params->{$old_param};
-        }
+        my $param = lc($old_param);
+        $param = "_".$param if ($param !~ "^_");
+        $params->{$param} = $params->{$old_param};
+        delete $params->{$old_param};
     }
 
     # if this API method is cached, return it now
