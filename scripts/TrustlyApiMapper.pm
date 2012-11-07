@@ -121,9 +121,12 @@ sub _get_special_handler
                                                  _limit _sortby _sortorder
                                                  _filterkeys _params) ]))
     {
-        # convert the params from a hashref into a list
-        my $converted_params = [];
+        # Convert the params from a hashref into a list.  DO NOT set it to an
+        # empty list or postgres will go crazy.  Use "undef" instead of there
+        # are no params.
+        my $converted_params = undef;
         foreach my $k (keys %{$params->{_params}} ) {
+            my $converted_params = [] unless $converted_params;
             push @$converted_params, [$k, $params->{_params}->{$k}];
         }
         $params->{_params} = $converted_params;
