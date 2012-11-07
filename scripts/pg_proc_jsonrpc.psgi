@@ -26,33 +26,6 @@ my $dbconn = DBIx::Connector->new("dbi:Pg:service=pg_proc_jsonrpc", '', '', {pg_
 # database roundtrips.
 my $pg = DBIx::Pg::CallFunction->new(undef, {RaiseError => 0, EnableFunctionLookupCache => 1});
 
-sub is_internal_ip
-{
-    my $ip = shift;
-
-    return 1 if $ip eq "127.0.0.1"; # localhost
-    return 1 if $ip eq "83.140.44.183"; # www.gluefinance.com
-    return 1 if $ip =~ m{^93\.158\.127\.\d+}; # www-vrt.gluefinance.com
-    return 1 if $ip =~ m{^10\.1\.1\.\d+};
-
-    return 0;
-}
-
-sub get_host
-{
-    my $env = shift;
-
-    my $remote_addr = $env->{REMOTE_ADDR};
-    
-    if (is_internal_ip($remote_addr))
-    {
-        my $x_forwarded_for = $env->{HTTP_X_FORWARDED_FOR};
-        return $x_forwarded_for if $x_forwarded_for =~ /($RE{net}{IPv4})$/;
-        # if x-forwarded-for is not available, just return REMOTE_ADDR
-    }
-
-    return $remote_addr;
-}
 
 my $app = sub {
     my $env = shift;
@@ -246,6 +219,39 @@ my $app = sub {
         [ to_json($response, {pretty => 1}) ]
     ];
 };
+
+
+# Return either REMOTE_ADDR, or for internal IP addresses (see is_internal_ip),
+# return the HTTP X-Forwarded-For header.
+sub get_host
+{
+    my $env = shift;
+
+    my $remote_addr = $env->{REMOTE_ADDR};
+    
+    if (is_internal_ip($remote_addr))
+    {
+        my $x_forwarded_for = $env->{HTTP_X_FORWARDED_FOR};
+        return $x_forwarded_for if $x_forwarded_for =~ /($RE{net}{IPv4})$/;
+        # if x-forwarded-for is not available, just return REMOTE_ADDR
+    }
+
+    return $remote_addr;
+}
+
+# Return 1 if the given argument is an internal IP, 0 otherwise
+sub is_internal_ip
+{
+    my $ip = shift;
+
+    return 1 if $ip eq "127.0.0.1"; # localhost
+    return 1 if $ip eq "83.140.44.183"; # www.gluefinance.com
+    return 1 if $ip =~ m{^93\.158\.127\.\d+}; # www-vrt.gluefinance.com
+    return 1 if $ip =~ m{^10\.1\.1\.\d+};
+
+    return 0;
+}
+
 
 __END__
 
