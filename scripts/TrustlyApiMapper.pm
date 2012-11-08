@@ -186,7 +186,7 @@ sub _get_special_handler
         return {
                     proname         => 'get_view',
                     nspname         => undef,
-                    params          => $params 
+                    params          => $params,
                     returns_json    => 0
                };
     }
