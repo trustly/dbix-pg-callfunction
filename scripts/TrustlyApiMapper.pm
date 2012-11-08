@@ -34,15 +34,15 @@ WITH FunctionArgs AS
             SELECT
                 proname, oid, proargnames,
                 -- proargmodes can be NULL, meaning all arguments are IN               
-                COALESCE(proargmodes, array_fill('i'::"char", ARRAY[array_length(proargnames,1)])) AS proargmodes
+                COALESCE(proargmodes, array_fill('i'::"char", ARRAY[COALESCE(array_length(proargnames,1), 0)])) AS proargmodes
             FROM
                 pg_proc
             WHERE
-                lower(regexp_replace(proname, E'([^\\\\^])_', E'\\\\1', 'g')) = lower(?)
+                lower(regexp_replace(proname, E'([^\\\\^])_', E'\\\\1', 'g')) = lower($1)
         ) ss
     ) ss2
     WHERE
-        proargmode = 'i' OR proargmode = 'b'
+        proargmode IN('i', 'b')
 ),
 -- Now we need to unnest() the arguments to the method call, once for each
 -- function that potentially could match the method call.  That way we can
@@ -67,7 +67,7 @@ MatchedArgs AS
                 FunctionArgs
         ) ss
         CROSS JOIN
-            unnest(?::name[]) proargname
+            unnest($2::name[]) proargname
     ) MethodArgs
         ON (FunctionArgs.proargname = MethodArgs.proargname AND FunctionArgs.oid = MethodArgs.oid)
 )
@@ -107,6 +107,57 @@ JOIN
 JOIN
     pg_namespace
         ON (pg_namespace.oid = pg_proc.pronamespace)
+;
+};
+
+my $sql_query_noparams = q{
+SELECT
+    proname, pg_namespace.nspname, FALSE AS requirehost,
+    prorettype = 'json'::regtype AS returns_json
+FROM
+    pg_proc
+JOIN
+    pg_namespace
+        ON (pg_namespace.oid = pg_proc.pronamespace)
+WHERE
+    lower(regexp_replace(proname, E'([^\\\\^])_', E'\\\\1', 'g')) = lower($1) AND
+    proargnames IS NULL
+
+    UNION ALL
+
+SELECT
+    proname, pg_namespace.nspname, TRUE AS requirehost,
+    prorettype = 'json'::regtype AS returns_json
+FROM
+(
+    SELECT
+        oid, array_agg(proargname) AS proargnames
+    FROM
+    (
+        SELECT
+            oid,
+            unnest(proargnames) AS proargname,
+            -- proargmodes can be NULL, meaning all arguments are IN               
+            unnest(COALESCE(proargmodes, array_fill('i'::"char", ARRAY[COALESCE(array_length(proargnames,1), 0)]))) AS proargmode
+        FROM
+            pg_proc
+        WHERE
+            lower(regexp_replace(proname, E'([^\\\\^])_', E'\\\\1', 'g')) = lower($1) AND
+            '_host' = ANY(proargnames)
+    ) unnested
+    WHERE
+        proargmode IN ('i', 'b')
+    GROUP BY
+        oid
+) aggregated
+JOIN
+    pg_proc
+        ON (pg_proc.oid = aggregated.oid)
+JOIN
+    pg_namespace
+        ON (pg_namespace.oid = pg_proc.pronamespace)
+WHERE
+    aggregated.proargnames = ARRAY['_host']
 ;
 };
 
@@ -229,9 +280,18 @@ sub api_method_call_mapper
     my $dbh = $dbconn->dbh;
     die "could not connect to database: $DBI::errstr\n" if (!defined($dbh));
 
-    my $sth = $dbh->prepare($sql_query);
     my @method_arguments = keys %{$params};
-    $sth->execute($method, \@method_arguments);
+    my $sth;
+    if ((scalar @method_arguments) == 0)
+    {
+        $sth = $dbh->prepare($sql_query_noparams);
+        $sth->execute($method);
+    }
+    else
+    {
+        $sth = $dbh->prepare($sql_query);
+        $sth->execute($method, \@method_arguments);
+    }
 
     die "unknown API call \"$method(".join(",", @old_param_list).")\"" if ($sth->rows == 0);
     die "could not unambiguously map API call \"$method\" to a function" if ($sth->rows > 1);
