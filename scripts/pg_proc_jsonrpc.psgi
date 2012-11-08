@@ -12,8 +12,6 @@ use JSON;
 use Plack::Request;
 use Regexp::Common qw(net delimited);
 
-use Data::Dumper;
-
 require TrustlyApiMapper;
 
 # DBIx::Connector allows us to safely reuse connections by making sure that we
@@ -163,10 +161,14 @@ my $app = sub {
             # will still be undef.  We need to check the actual SQLSTATE.
             if ($pg->{SQLState} eq "00000")
             {
+                # OK, the function call succeeded.  If it returned a json object,
+                # unfortunately we need to decode it to re-encode it into the
+                # final result later.
+                $result = from_json($result) if ($function_call->{returns_json});
+
                 # Everything went well, but we still need to allow the mapper to do
                 # special post-processing for some method calls.  We want to do this
                 # inside eval to catch any exceptions.
-
                 $result = TrustlyApiMapper::api_method_call_postprocessing($method_call, $result);
                 $success = 1;
                 last;

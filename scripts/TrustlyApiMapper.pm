@@ -73,7 +73,7 @@ MatchedArgs AS
 )
 
 SELECT
-    pg_proc.proname, pg_namespace.nspname, requirehost
+    pg_proc.proname, pg_namespace.nspname, requirehost, prorettype = 'json'::regtype AS returns_json
 FROM
 (
     SELECT
@@ -184,9 +184,10 @@ sub _get_special_handler
 
         $params->{_host} = $host;
         return {
-                    proname => 'get_view',
-                    nspname => undef,
-                    params  => $params 
+                    proname         => 'get_view',
+                    nspname         => undef,
+                    params          => $params 
+                    returns_json    => 0
                };
     }
 
@@ -273,9 +274,10 @@ sub api_method_call_mapper
         $params->{_host} = $host if ($cache_entry->{requirehost});
 
         return {
-                    proname => $cache_entry->{proname},
-                    nspname => $cache_entry->{nspname},
-                    params  => $params
+                    proname         => $cache_entry->{proname},
+                    nspname         => $cache_entry->{nspname},
+                    returns_json    => $cache_entry->{returns_json},
+                    params          => $params
                };
     }
 
@@ -306,18 +308,20 @@ sub api_method_call_mapper
     my $requirehost = $data->{requirehost};
     $api_method_cache{$cache_key} =
         {
-            proname     => $data->{proname},
-            nspname     => $data->{nspname},
-            requirehost => $requirehost
+            proname         => $data->{proname},
+            nspname         => $data->{nspname},
+            returns_json    => $data->{returns_json},
+            requirehost     => $requirehost
         };
 
     # inject host if necessary
     $params->{_host} = $host if ($requirehost);
 
     return {
-                proname => $data->{proname},
-                nspname => $data->{nspname},
-                params  => $params
+                proname         => $data->{proname},
+                nspname         => $data->{nspname},
+                returns_json    => $data->{returns_json},
+                params          => $params
            };
 }
 
