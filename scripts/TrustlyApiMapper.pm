@@ -251,8 +251,11 @@ sub api_method_call_mapper
     {
         my $param = lc($old_param);
         $param = "_".$param if ($param !~ "^_");
-        $params->{$param} = $params->{$old_param};
-        delete $params->{$old_param};
+        if ($param ne $old_param)
+        {
+            $params->{$param} = $params->{$old_param};
+            delete $params->{$old_param};
+        }
     }
 
     # see if there's a special handler for this method call
