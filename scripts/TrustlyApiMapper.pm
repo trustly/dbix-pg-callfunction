@@ -180,6 +180,23 @@ sub _get_special_handler
                     returns_json    => 1
                };
     }
+    elsif (_compare_signature($method, \@paramlist,
+                              'NewBankWithdrawalFromSpecificAccount',
+                              [ qw(_bankwithdrawaltype _toclearinghouse _tobanknumber _toaccountnumber
+                                   _messageid _username _password _amount _currency _executiondatetime
+                                   _timezone _cancelifdelayed _name _notificationurl _language
+                                   _requestattempt _sendingbankaccount
+                                       )]))
+    {
+        $params->{_host} = $host;
+        return {
+                    proname         => 'new_bankwithdrawal',
+                    nspname         => undef,
+                    params          => $params,
+                    returns_json    => 1
+               };
+    }
+
 
     return undef;
 }
