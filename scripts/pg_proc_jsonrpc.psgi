@@ -119,6 +119,10 @@ my $app = sub {
         my $host = _get_host($env);
         my $function_call = TrustlyApiMapper::api_method_call_mapper($method_call, $dbconn, $host);
 
+        # To allow passing complex objects to database functions, replace hashrefs
+        # with their JSON representations.
+        _replace_hashrefs($function_call);
+
         # Ask for a connection from DBIx::Connector.  It is important to do this
         # inside the  eval  in case the connection attempt fails so we can catch
         # the error message and send that to the client.  Note: it is important
@@ -227,6 +231,21 @@ my $app = sub {
     ];
 };
 
+
+# Replaces hashrefs in $_[0]->{params} with their JSON representations
+sub _replace_hashrefs
+{
+    my $function_call = shift;
+
+    my $params = $function_call->{params};
+    foreach my $key (keys %{$params})
+    {
+        if (ref($params->{$key}) eq 'HASH')
+        {
+            $params->{$key} = to_json($params->{$key});
+        }
+    }
+}
 
 # Return either REMOTE_ADDR, or for internal IP addresses (see _is_internal_ip),
 # return the HTTP X-Forwarded-For header.
