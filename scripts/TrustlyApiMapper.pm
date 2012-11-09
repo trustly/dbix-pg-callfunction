@@ -172,22 +172,12 @@ sub _get_special_handler
                                                  _limit _sortby _sortorder
                                                  _filterkeys _params) ]))
     {
-        # Convert the params from a hashref into a list.  DO NOT set it to an
-        # empty list or postgres will go crazy.  Use "undef" instead of there
-        # are no params.
-        my $converted_params = undef;
-        foreach my $k (keys %{$params->{_params}} ) {
-            my $converted_params = [] unless $converted_params;
-            push @$converted_params, [$k, $params->{_params}->{$k}];
-        }
-        $params->{_params} = $converted_params;
-
         $params->{_host} = $host;
         return {
                     proname         => 'get_view',
                     nspname         => undef,
                     params          => $params,
-                    returns_json    => 0
+                    returns_json    => 1
                };
     }
 
@@ -200,37 +190,6 @@ sub api_method_call_postprocessing
 
     my $method = $method_call->{method};
     my $params = $method_call->{params};
-
-    if ($method eq 'GetViewParams')
-    {
-        my $datestamp;
-        my @report;
-
-        eval 
-        {
-            my $ret = Storable::thaw(MIME::Base64::decode_base64($result));
-            return undef unless ref $ret eq "ARRAY";
-
-            $datestamp = shift @$ret;
-            my $keys = shift @$ret;
-            foreach my $row (@$ret) {
-                my %pack;
-                my $i = 0;
-                foreach my $col ( @$row ) {
-                    $pack{$keys->[$i]} = $col;
-                    $i++;
-                }
-                push @report, \%pack;
-            }
-        };
-
-        die $@ if $@;
-            
-        return {
-            now  => $datestamp,
-            data => \@report,
-        };            
-    }
 
     # no special handler, just return whatever we got from the database
     return $result;
