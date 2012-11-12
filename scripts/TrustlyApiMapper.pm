@@ -38,7 +38,8 @@ WITH FunctionArgs AS
             FROM
                 pg_proc
             WHERE
-                lower(regexp_replace(proname, E'([^\\\\^])_', E'\\\\1', 'g')) = lower($1)
+                lower(regexp_replace(proname, E'([^\\\\^])_', E'\\\\1', 'g')) = lower($1) OR
+                lower(proname) = lower($1)
         ) ss
     ) ss2
     WHERE
@@ -120,7 +121,7 @@ JOIN
     pg_namespace
         ON (pg_namespace.oid = pg_proc.pronamespace)
 WHERE
-    lower(regexp_replace(proname, E'([^\\\\^])_', E'\\\\1', 'g')) = lower($1) AND
+    (lower(regexp_replace(proname, E'([^\\\\^])_', E'\\\\1', 'g')) = lower($1) OR lower(proname) = lower($1)) AND
     proargnames IS NULL
 
     UNION ALL
@@ -142,7 +143,7 @@ FROM
         FROM
             pg_proc
         WHERE
-            lower(regexp_replace(proname, E'([^\\\\^])_', E'\\\\1', 'g')) = lower($1) AND
+            (lower(regexp_replace(proname, E'([^\\\\^])_', E'\\\\1', 'g')) = lower($1) OR lower(proname) = lower($1)) AND
             '_host' = ANY(proargnames)
     ) unnested
     WHERE
