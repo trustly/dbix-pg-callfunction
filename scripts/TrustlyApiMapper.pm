@@ -251,8 +251,8 @@ sub api_method_call_mapper
         $sth->execute($method, \@method_arguments);
     }
 
-    die "unknown API call \"$method(".join(",", @old_param_list).")\"" if ($sth->rows == 0);
-    die "could not unambiguously map API call \"$method\" to a function" if ($sth->rows > 1);
+    die "unknown API call \"".$method_call->{method}."(".join(",", @old_param_list).")\"" if ($sth->rows == 0);
+    die "could not unambiguously map API call \"".$method_call->{method}."\" to a function" if ($sth->rows > 1);
 
     my $data = $sth->fetchrow_hashref;
     # make sure there are no more rows
