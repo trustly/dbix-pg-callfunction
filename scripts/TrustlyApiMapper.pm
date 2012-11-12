@@ -174,7 +174,21 @@ sub _get_special_handler
     {
         $params->{_host} = $host;
         return {
-                    proname         => 'get_view',
+                    proname         => 'get_view_json',
+                    nspname         => undef,
+                    params          => $params,
+                    returns_json    => 1
+               };
+    }
+    if (_compare_signature($method, \@paramlist,
+                           'GetView', [ qw(_username _password _viewname
+                                           _offset _datestamp _dateorder
+                                           _limit _sortby _sortorder
+                                           _filterkeys) ]))
+    {
+        $params->{_host} = $host;
+        return {
+                    proname         => 'get_view_json',
                     nspname         => undef,
                     params          => $params,
                     returns_json    => 1
@@ -190,7 +204,23 @@ sub _get_special_handler
     {
         $params->{_host} = $host;
         return {
-                    proname         => 'new_bankwithdrawal',
+                    proname         => 'new_bankwithdrawal_json',
+                    nspname         => undef,
+                    params          => $params,
+                    returns_json    => 1
+               };
+    }
+    elsif (_compare_signature($method, \@paramlist,
+                              'NewBankWithdrawal',
+                              [ qw(_bankwithdrawaltype _toclearinghouse _tobanknumber _toaccountnumber
+                                   _messageid _username _password _amount _currency _executiondatetime
+                                   _timezone _cancelifdelayed _name _notificationurl _language
+                                   _requestattempt
+                                       )]))
+    {
+        $params->{_host} = $host;
+        return {
+                    proname         => 'new_bankwithdrawal_json',
                     nspname         => undef,
                     params          => $params,
                     returns_json    => 1
