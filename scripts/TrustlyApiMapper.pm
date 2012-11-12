@@ -161,74 +161,24 @@ WHERE
 ;
 };
 
-sub _get_special_handler
+sub _get_special_mapping
 {
-    my ($method, $params, $host) = @_;
-    my @paramlist = keys %{$params};
+    my ($method) = @_;
 
-    if (_compare_signature($method, \@paramlist,
-                           'GetViewParams', [ qw(_username _password _viewname
-                                                 _offset _datestamp _dateorder
-                                                 _limit _sortby _sortorder
-                                                 _filterkeys _params) ]))
+    my $simple_mapping = {
+                            "GetViewParams"     => "get_view_json",
+                            "GetView"           => "get_view_json",
+                            "NewBankWithdrawal" => "new_bankwithdrawal_json",
+                            "NewBankWithdrawalFromSpecificAccount"
+                                                => "new_bankwithdrawal_json",
+                         };
+
+    if (defined((my $value = $simple_mapping->{$method})))
     {
-        $params->{_host} = $host;
-        return {
-                    proname         => 'get_view_json',
-                    nspname         => undef,
-                    params          => $params,
-                    returns_json    => 1
-               };
-    }
-    if (_compare_signature($method, \@paramlist,
-                           'GetView', [ qw(_username _password _viewname
-                                           _offset _datestamp _dateorder
-                                           _limit _sortby _sortorder
-                                           _filterkeys) ]))
-    {
-        $params->{_host} = $host;
-        return {
-                    proname         => 'get_view_json',
-                    nspname         => undef,
-                    params          => $params,
-                    returns_json    => 1
-               };
-    }
-    elsif (_compare_signature($method, \@paramlist,
-                              'NewBankWithdrawalFromSpecificAccount',
-                              [ qw(_bankwithdrawaltype _toclearinghouse _tobanknumber _toaccountnumber
-                                   _messageid _username _password _amount _currency _executiondatetime
-                                   _timezone _cancelifdelayed _name _notificationurl _language
-                                   _requestattempt _sendingbankaccount
-                                       )]))
-    {
-        $params->{_host} = $host;
-        return {
-                    proname         => 'new_bankwithdrawal_json',
-                    nspname         => undef,
-                    params          => $params,
-                    returns_json    => 1
-               };
-    }
-    elsif (_compare_signature($method, \@paramlist,
-                              'NewBankWithdrawal',
-                              [ qw(_bankwithdrawaltype _toclearinghouse _tobanknumber _toaccountnumber
-                                   _messageid _username _password _amount _currency _executiondatetime
-                                   _timezone _cancelifdelayed _name _notificationurl _language
-                                   _requestattempt
-                                       )]))
-    {
-        $params->{_host} = $host;
-        return {
-                    proname         => 'new_bankwithdrawal_json',
-                    nspname         => undef,
-                    params          => $params,
-                    returns_json    => 1
-               };
+        return $value;
     }
 
-
-    return undef;
+    return $method;
 }
 
 sub api_method_call_postprocessing
@@ -265,11 +215,8 @@ sub api_method_call_mapper
         }
     }
 
-    # see if there's a special handler for this method call
-    if ((my $function_call = _get_special_handler($method, $params, $host)))
-    {
-        return $function_call;
-    }
+    # allow special mapping required by some API calls
+    $method = _get_special_mapping($method);
 
     # if this API method is cached, return it now
     my $cache_key = _calculate_api_method_cache_key($method, \@old_param_list);
@@ -337,15 +284,6 @@ sub _calculate_api_method_cache_key
 {
     my ($proname, $argnames) = @_;
     return $proname."(".join(",", sort @{$argnames}).")";
-}
-
-# Compare signatures of two method calls.  Uses _calculate_api_method_cache_key
-sub _compare_signature
-{
-    my ($a, $aparams, $b, $bparams) = @_;
-
-    return _calculate_api_method_cache_key($a, $aparams) eq
-           _calculate_api_method_cache_key($b, $bparams);
 }
 
 END
