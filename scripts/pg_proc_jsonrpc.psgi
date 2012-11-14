@@ -168,7 +168,7 @@ my $app = sub {
                 # OK, the function call succeeded.  If it returned a json object,
                 # unfortunately we need to decode it to re-encode it into the
                 # final result later.
-                $result = from_json($result) if ($function_call->{returns_json});
+                $result = from_json($result) if ($function_call->{returns_json} && defined $result);
 
                 # Everything went well, but we still need to allow the mapper to do
                 # special post-processing for some method calls.  We want to do this

@@ -67,6 +67,7 @@ sub _has_external_api_call_signature
     return $method_signature eq $external_signature;
 }
 
+# Return 1 if the method matches an external API call, false otherwise
 sub _matches_external_api_call
 {
     my ($dbconn, $method, $data) = @_;
