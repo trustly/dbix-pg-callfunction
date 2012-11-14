@@ -55,10 +55,7 @@ my $app = sub {
                 params  => $params,
                 id      => 1
             };
-    } elsif ($env->{REQUEST_METHOD} eq 'POST' &&
-        $env->{HTTP_ACCEPT} =~ m!application/json! &&
-        $env->{CONTENT_TYPE} =~ m!^application/json!
-    ) {
+    } elsif ($env->{REQUEST_METHOD} eq 'POST') {
         my $json_input;
         my $jsonrpc;
         $env->{'psgi.input'}->read($json_input, $env->{CONTENT_LENGTH});
