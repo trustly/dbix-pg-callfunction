@@ -36,6 +36,8 @@ sub _get_special_mapping
                             "NewBankWithdrawal" => "new_bankwithdrawal_json",
                             "NewBankWithdrawalFromSpecificAccount"
                                                 => "new_bankwithdrawal_json",
+                            "GetUserDailyBalances"
+                                                => "get_user_daily_balances_json",
                             "GetServerRequest"  => "get_server_request_json"
                          };
 
