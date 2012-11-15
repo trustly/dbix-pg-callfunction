@@ -8,9 +8,14 @@ use DBD::Pg;
 use DBIx::Pg::CallFunction;
 use DBIx::Connector;
 use Time::HiRes;
+use POSIX qw(strftime);
+use File::Path qw(make_path);
 use JSON;
 use Plack::Request;
 use Regexp::Common qw(net delimited);
+
+my $extensive_logging_path = '/tmp/pg_proc_jsonrpc';
+my $extensive_logging_filename;
 
 require TrustlyApiMapper;
 
@@ -60,6 +65,7 @@ my $app = sub {
         my $jsonrpc;
         $env->{'psgi.input'}->read($json_input, $env->{CONTENT_LENGTH});
         my $json_rpc_request = from_json($json_input);
+        _log_request($json_rpc_request, $json_input);
 
         $method_call =
             {
@@ -221,12 +227,75 @@ my $app = sub {
         }
     }
 
+    my $json_response = to_json($response, {pretty => 1});
+    _log_response($method_call, $json_response);
+
     return [
         '200',
         [ 'Content-Type' => 'application/json; charset=utf-8' ],
-        [ to_json($response, {pretty => 1}) ]
+        [ $json_response ]
     ];
 };
+
+sub _get_extensive_logging_filename
+{
+    my ($merchant_id, $type) = @_;
+
+    my $date = strftime("%Y%m%d", localtime);
+    my $time = strftime("%H%M%S.", localtime).(Time::HiRes::gettimeofday())[1];
+
+    if ($type eq 'request')
+    {
+        my $path = "$extensive_logging_path/$merchant_id/$date/";
+        make_path($path);
+        $extensive_logging_filename = "$path/$time";
+    }
+    
+    return "$extensive_logging_filename.$type";
+}
+
+sub _write_extensive_log
+{
+    my ($filename, $content) = @_;
+
+    open(my $fh, ">", $filename) or die "could not open log file $filename: $!";
+    print $fh $content or die "could not write to log file $filename: $!";
+    close($fh);
+}
+
+sub _get_merchant_id_from_params
+{
+    my $params = shift;
+
+    # first look into "data" in case this is an api_call()
+    return $params->{data}->{Username} if (exists($params->{data}) && exists($params->{data}->{Username}));
+    # then look for a "Username"
+    return $params->{Username} if (exists($params->{Username}));
+
+    # can't figure out the username, give up
+    return 'no_merchant_id';
+}
+
+sub _log_request
+{
+    return if !defined $extensive_logging_path;
+
+    my ($json_rpc_request, $json) = @_;
+
+    my $merchant_id = _get_merchant_id_from_params($json_rpc_request->{params});
+    my $path = _get_extensive_logging_filename($merchant_id, 'request');
+    _write_extensive_log($path, $json);
+}
+
+sub _log_response
+{
+    return if !defined $extensive_logging_path;
+
+    my ($method_call, $json) = @_;
+
+    my $path = _get_extensive_logging_filename(undef, 'response');
+    _write_extensive_log($path, $json);
+}
 
 
 # Replaces hashrefs in $_[0]->{params} with their JSON representations
