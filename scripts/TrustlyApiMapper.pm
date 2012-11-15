@@ -31,6 +31,9 @@ sub _get_special_mapping
     my ($method) = @_;
 
     my $simple_mapping = {
+                            "GetViewParamsCSVDelimiter"
+                                                => "get_view_csv",
+                            "GetViewParamsCSV"  => "get_view_csv",
                             "GetViewParams"     => "get_view_json",
                             "GetView"           => "get_view_json",
                             "NewBankWithdrawal" => "new_bankwithdrawal_json",
