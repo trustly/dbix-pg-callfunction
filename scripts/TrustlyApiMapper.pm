@@ -31,11 +31,12 @@ sub _get_special_mapping
     my ($method) = @_;
 
     my $simple_mapping = {
-                            "GetViewParams"     => "get_view",
-                            #"GetView"           => "get_view_json",
-                            #"NewBankWithdrawal" => "new_bankwithdrawal_json",
+                            "GetViewParams"     => "get_view_json",
+                            "GetView"           => "get_view_json",
+                            "NewBankWithdrawal" => "new_bankwithdrawal_json",
                             "NewBankWithdrawalFromSpecificAccount"
-                                                => "new_bankwithdrawal",
+                                                => "new_bankwithdrawal_json",
+                            "GetServerRequest"  => "get_server_request_json"
                          };
 
     if (defined((my $value = $simple_mapping->{$method})))
