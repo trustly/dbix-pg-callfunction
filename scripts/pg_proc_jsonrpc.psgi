@@ -60,6 +60,9 @@ my $app = sub {
                 params  => $params,
                 id      => 1
             };
+
+        # default to 1.1
+        $version = 1.1;
     } elsif ($env->{REQUEST_METHOD} eq 'POST') {
         my $json_input;
         my $jsonrpc;
@@ -230,6 +233,9 @@ my $app = sub {
     my $json_response = to_json($response, {pretty => 1});
     _log_response($method_call, $json_response);
 
+    # finished logging for this request
+    _extensive_log_finish_request();
+
     return [
         '200',
         [ 'Content-Type' => 'application/json; charset=utf-8' ],
@@ -241,14 +247,19 @@ sub _get_extensive_logging_filename
 {
     my ($merchant_id, $type) = @_;
 
-    my $date = strftime("%Y%m%d", localtime);
-    my $time = strftime("%H%M%S.", localtime).(Time::HiRes::gettimeofday())[1];
-
     if ($type eq 'request')
     {
+        my $date = strftime("%Y%m%d", localtime);
+        my $time = strftime("%H%M%S.", localtime).(Time::HiRes::gettimeofday())[1];
+
         my $path = "$extensive_logging_path/$merchant_id/$date/";
         make_path($path);
         $extensive_logging_filename = "$path/$time";
+    }
+    elsif (!defined $extensive_logging_filename)
+    {
+        # should only happen for GET requests
+        return undef;
     }
     
     return "$extensive_logging_filename.$type";
@@ -276,6 +287,12 @@ sub _get_merchant_id_from_params
     return 'no_merchant_id';
 }
 
+# unset extnensive_logging_filename (see _get_extensive_logging_filename)
+sub _extensive_log_finish_request
+{
+    $extensive_logging_filename = undef;
+}
+
 sub _log_request
 {
     return if !defined $extensive_logging_path;
@@ -294,6 +311,10 @@ sub _log_response
     my ($method_call, $json) = @_;
 
     my $path = _get_extensive_logging_filename(undef, 'response');
+
+    # skip if no path is set
+    return if (!defined $path);
+
     _write_extensive_log($path, $json);
 }
 
