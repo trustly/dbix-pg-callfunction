@@ -77,14 +77,14 @@ my $app = sub {
                 id      => $json_rpc_request->{id}
             };
 
-        if ($env->{SCRIPT_NAME} eq '/1') {
+        if ($env->{REQUEST_URI} =~ '/+api/1') {
             $method_call->{is_v1_api_call} = 1
         }
-        elsif ($env->{SCRIPT_NAME} eq '/Legacy') {
+        elsif ($env->{REQUEST_URI} =~ '/+api/Legacy') {
             $method_call->{is_v1_api_call} = 0;
         }
         else {
-            print STDERR "unknown script name \"".$env->{SCRIPT_NAME}."\"\n";
+            print STDERR "unrecognized request uri \"".$env->{REQUEST_URI}."\"\n";
             return $invalid_request;
         }
 
