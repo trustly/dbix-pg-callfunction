@@ -69,13 +69,24 @@ my $app = sub {
         my $json_rpc_request = from_json($json_input);
         _log_request($json_rpc_request, $json_input);
 
+
         $method_call =
             {
                 method  => $json_rpc_request->{method},
                 params  => $json_rpc_request->{params},
-                id      => $json_rpc_request->{id},
-                is_v1_api_call => 0
+                id      => $json_rpc_request->{id}
             };
+
+        if ($env->{SCRIPT_NAME} eq '/1') {
+            $method_call->{is_v1_api_call} = 1
+        }
+        elsif ($env->{SCRIPT_NAME} eq '/Legacy') {
+            $method_call->{is_v1_api_call} = 0;
+        }
+        else {
+            print STDERR "unknown script name \"".$env->{SCRIPT_NAME}."\"\n";
+            return $invalid_request;
+        }
 
         $version = $json_rpc_request->{version};
         $jsonrpc = $json_rpc_request->{jsonrpc};
