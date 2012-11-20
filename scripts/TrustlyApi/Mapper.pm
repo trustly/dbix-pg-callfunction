@@ -20,9 +20,6 @@ BEGIN
     our @EXPORT = qw(api_method_call_mapper);
 }
 
-# cache for external API method calls
-my %external_api_call_cache = ();
-
 # cache for API method -> function call mapping
 my %api_method_cache = ();
 
@@ -63,7 +60,7 @@ sub api_method_call_postprocessing
     return $result;
 }
 
-sub _has_external_api_call_signature
+sub _has_v1_api_call_signature
 {
     my $external_signature = join(',', sort qw(Signature UUID Data));
 
@@ -73,42 +70,30 @@ sub _has_external_api_call_signature
     return $method_signature eq $external_signature;
 }
 
-sub _map_external_api_call
+sub _map_v1_api_call
 {
     my ($dbc, $method, $params, $host) = @_;
 
     # check that the call has the external API method call signature
-    return undef if (!_has_external_api_call_signature($params));
+    if (!_has_v1_api_call_signature($params))
+    {
+        # XXX maybe there's a better error code for this
+        die "ERROR_INVALID_PARAMETERS v1 API call does not have the correct parameters" 
+    }
     # now do a lookup in the database to see if this is actually an API method
-    my $result = $dbc->execute($TrustlyApi::MapperSqlQueries::sql_map_external_method_call,
-                               $method, [keys %{$params}]);
-    my $num_rows = scalar %{$result->{rows}};
+    my $result = $dbc->execute($TrustlyApi::MapperSqlQueries::sql_map_v1_method_call,
+                               $method, [keys %{$params->{Data}}]);
+    my $num_rows = scalar @{$result->{rows}};
     # if the signature matches, it has to match an API call
     die "ERROR_INVALID_FUNCTION unknown external API call \"".$method."(".join(",", keys %{$params}).")\"" if ($num_rows == 0);
 
     return {
                 proname         => 'api_call',
                 nspname         => 'public',
+                proretset       => 0,
                 returns_json    => 1,
-                params          => $params,
-                is_external_api_call => 1
+                params          => $params->{Data}
            };
-}
-
-# Replaces hashrefs in a list of hashrefs with their JSON representations
-# XXX maybe this should be in DBConnection->call_function()  ?
-sub _replace_hashrefs
-{
-    my $params = shift;
-    foreach my $key (keys %{$params})
-    {
-        if (ref($params->{$key}) eq 'HASH')
-        {
-            $params->{$key} = JSON::to_json($params->{$key});
-        }
-    }
-
-    return $params;
 }
 
 sub api_method_call_mapper
@@ -119,18 +104,14 @@ sub api_method_call_mapper
     my $params = $method_call->{params};
 
     # check whether this is an external API call
-    if (defined (my $api_call = _map_external_api_call($dbc, $method, $params)))
+    if ($method_call->{is_v1_api_call})
     {
-        # It looks like an external API call, so treat it as such.  At this
-        # point there's no going back to a "regular" function call.
+        my $api_call = _map_v1_api_call($dbc, $method, $params);
+
         $params = _convert_parameter_list($params);
         $params->{_host} = $host;
         $params->{_method} = $method;
         $api_call->{params} = $params;
-
-        # To allow passing complex objects to database functions, replace hashrefs
-        # with their JSON representations.
-        _replace_hashrefs($api_call->{params});
 
         return $api_call;
     }
@@ -152,9 +133,9 @@ sub api_method_call_mapper
         return {
                     proname         => $cache_entry->{proname},
                     nspname         => $cache_entry->{nspname},
+                    proretset       => $cache_entry->{proretset},
                     returns_json    => $cache_entry->{returns_json},
-                    params          => $params,
-                    is_external_api_call => 0
+                    params          => $params
                };
     }
 
@@ -173,8 +154,8 @@ sub api_method_call_mapper
     my $num_rows = @{$result->{rows}};
 
     die $result->{errstr} if (!defined $result->{rows});
-    die "ERROR:  ERROR_INVALID_FUNCTION unknown API call \"".$method_call->{method}."(".join(",", keys %{$method_call->{params}}).")\"" if ($num_rows == 0);
-    die "ERROR:  ERROR_INVALID_PARAMETERS could not unambiguously map API call \"".$method_call->{method}."\" to a function" if ($num_rows > 1);
+    die "ERROR_INVALID_FUNCTION unknown API call \"".$method_call->{method}."(".join(",", keys %{$method_call->{params}}).")\"" if ($num_rows == 0);
+    die "ERROR_INVALID_PARAMETERS could not unambiguously map API call \"".$method_call->{method}."\" to a function" if ($num_rows > 1);
 
     my $data = $result->{rows}->[0];
     my $requirehost = $data->{requirehost};
@@ -182,9 +163,9 @@ sub api_method_call_mapper
         {
             proname         => $data->{proname},
             nspname         => $data->{nspname},
+            proretset       => $data->{proretset},
             returns_json    => $data->{returns_json},
-            requirehost     => $requirehost,
-            is_external_api_call => 0
+            requirehost     => $requirehost
         };
 
     # inject host if necessary
@@ -193,9 +174,9 @@ sub api_method_call_mapper
     return {
                 proname         => $data->{proname},
                 nspname         => $data->{nspname},
+                proretset       => $data->{proretset},
                 returns_json    => $data->{returns_json},
-                params          => $params,
-                is_external_api_call => 0
+                params          => $params
            };
 }
 
@@ -213,9 +194,7 @@ sub _convert_parameter_list
         $new_params->{$new_param} = $old_params->{$old_param};
     }
 
-    # To allow passing complex objects to database functions, replace hashrefs
-    # with their JSON representations.
-    return _replace_hashrefs($new_params);
+    return $new_params;
 }
 
 # Calculate a cache key for a method call, given its signature.

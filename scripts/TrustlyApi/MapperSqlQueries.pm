@@ -64,7 +64,8 @@ MatchedArgs AS
 )
 
 SELECT
-    pg_proc.proname, pg_namespace.nspname, requirehost, prorettype = 'json'::regtype AS returns_json
+    pg_proc.proname, pg_namespace.nspname, requirehost, prorettype = 'json'::regtype AS returns_json,
+    pg_proc.proretset
 FROM
 (
     SELECT
@@ -104,7 +105,7 @@ JOIN
 our $sql_map_function_call_noparams = q{
 SELECT
     proname, pg_namespace.nspname, FALSE AS requirehost,
-    prorettype = 'json'::regtype AS returns_json
+    prorettype = 'json'::regtype AS returns_json, proretset
 FROM
     pg_proc
 JOIN
@@ -118,7 +119,7 @@ WHERE
 
 SELECT
     proname, pg_namespace.nspname, TRUE AS requirehost,
-    prorettype = 'json'::regtype AS returns_json
+    prorettype = 'json'::regtype AS returns_json, proretset
 FROM
 (
     SELECT
@@ -152,7 +153,7 @@ WHERE
 ;
 };
 
-our $sql_map_external_method_call = q{
+our $sql_map_v1_method_call = q{
 SELECT
     Name
 FROM

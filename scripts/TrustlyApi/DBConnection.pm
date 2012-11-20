@@ -6,6 +6,7 @@ use warnings;
 use DBI;
 use DBD::Pg;
 use DBIx::Connector;
+use JSON;
 
 package TrustlyApi::DBConnection;
 
@@ -48,7 +49,7 @@ sub call_function
         # representation of that hash.
         if (ref($value) eq 'HASH')
         {
-            push @param_values, to_json($value);
+            push @param_values, JSON::to_json($value);
         }
         else
         {
@@ -60,7 +61,9 @@ sub call_function
     my $placeholders = join ",", map { $dbh->quote_identifier($_)." := ?" } @param_names;
     my $statement = 'SELECT * FROM ' . $dbh->quote_identifier(undef, $nspname, $proname) . '(' . $placeholders . ');'; 
 
-    return $self->execute($statement, @param_values);
+    my $result = $self->execute($statement, @param_values);
+
+    return $result; 
 }
 
 # _dbh(): Get a database handle without pinging the database
@@ -98,7 +101,7 @@ sub execute
     # from _dbh so long as queries work correctly on that connection.  If,
     # for some reason, a query does not work on that connection and we get
     # back an SQLSTATE we can't recognize (i.e. there *might* be a problem
-    # with the connection, we call dbh to go through the entire ping/reconnect
+    # with the connection), we call dbh to go through the entire ping/reconnect
     # procedure and retry immediately.
     $dbh = $self->_dbh;
 
@@ -108,9 +111,11 @@ sub execute
         if ($retried ||
             ($dbh->state =~ '22[0-9A-Z]{3}' ||
              $dbh->state =~ '40[0-9A-Z]{3}' ||
-             $dbh->state =~ '42[0-9A-Z]{3}'))
+             $dbh->state =~ '42[0-9A-Z]{3}' ||
+             $dbh->state =~ 'P0[0-9A-Z]{3}'))
         {
-            return { rows => undef, state => $dbh->state, errstr => $dbh->errstr };
+            # no need to retry
+            last;
         }
 
         $dbh = $self->dbh;
@@ -125,10 +130,10 @@ sub execute
         # make sure errstr is set to something
         $errstr = "unknown error" if (!defined $errstr);
 
-        return { rows => undef, state => $dbh->state, errstr => $errstr };
+        return { rows => undef, num_rows => -1, state => $dbh->state, errstr => $errstr };
     }
 
-    return { rows => $result, state => '00000', errstr => undef };
+    return { rows => $result, num_rows => scalar @{$result}, state => '00000', errstr => undef };
 }
 
 # _execute(): Actually executes the query.  Should only be called from execute()

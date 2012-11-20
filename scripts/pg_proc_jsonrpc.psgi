@@ -16,13 +16,14 @@ use Regexp::Common qw(net delimited);
 my $extensive_logging_path = '/tmp/pg_proc_jsonrpc';
 my $extensive_logging_filename;
 
+require TrustlyApi;
 require TrustlyApi::Mapper;
 require TrustlyApi::DBConnection;
 
 # DBIx::Connector allows us to safely reuse connections by making sure that we
 # don't reuse DBI connections we inherited from our parent process after a
 # fork().
-my $dbconnector = DBIx::Connector->new("dbi:Pg:service=pg_proc_jsonrpc", '', '', {pg_enable_utf8 => 1, RaiseError => 0});
+my $dbconnector = DBIx::Connector->new("dbi:Pg:service=pg_proc_jsonrpc", '', '', {pg_enable_utf8 => 1, RaiseError => 0, PrintError => 0});
 my $dbc = TrustlyApi::DBConnection->new($dbconnector);
 
 
@@ -55,7 +56,8 @@ my $app = sub {
             {
                 method  => $method,
                 params  => $params,
-                id      => 1
+                id      => 1,
+                is_v1_api_call => 0
             };
 
         # default to 1.1
@@ -71,7 +73,8 @@ my $app = sub {
             {
                 method  => $json_rpc_request->{method},
                 params  => $json_rpc_request->{params},
-                id      => $json_rpc_request->{id}
+                id      => $json_rpc_request->{id},
+                is_v1_api_call => 0
             };
 
         $version = $json_rpc_request->{version};
@@ -129,13 +132,6 @@ my $app = sub {
 
             if (defined $result->{rows})
             {
-                # OK, the function call succeeded.  If it returned a json object,
-                # unfortunately we need to decode it to re-encode it into the
-                # final result later.
-
-                # XXX move this to DBConnection
-                $result = from_json($result->{rows}) if ($function_call->{returns_json} && defined $result);
-
                 $success = 1;
                 last;
             }
@@ -189,57 +185,6 @@ my $app = sub {
         [ $json_response ]
     ];
 };
-
-sub _get_errcode_from_error_message
-{
-    my ($dbconn, $errmessage) = @_;
-
-    return 620;
-}
-
-sub _create_error_object
-{
-    my ($dbconn, $method_call, $function_call, $error) = @_;
-
-    die "is_external_api_call not set" if (defined $function_call && !defined $function_call->{is_external_api_call});
-    my $is_external_api_call = defined $function_call ? $function_call->{is_external_api_call} : 0;
-
-    my $errcode;
-    my $errmessage;
-
-    if ($error =~ /^(ERROR:  )?(ERROR_[A-Z_]+) /)
-        { $errmessage = $2; }
-    else
-        { $errmessage = 'ERROR_UNKNOWN'; }
-
-    $errcode = _get_errcode_from_error_message($dbconn, $errmessage);
-
-    my $errorobj =
-        {
-            name => "JSONRPCError",
-            message => $errmessage,
-            code => $errcode
-        };
-
-    # If this is an external API call, we need to sign the error object.
-    if ($is_external_api_call)
-    {
-        $errorobj = TrustlyApi::sign_error_object($errorobj);
-        $errorobj->{error} =
-            {
-                signature => "mysig",
-                uuid => "foo",
-                method => "method",
-                data =>
-                {
-                    message => $errmessage,
-                    code => $errcode
-                }
-            };
-    }
-
-    return $errorobj;
-}
 
 sub _get_extensive_logging_filename
 {
