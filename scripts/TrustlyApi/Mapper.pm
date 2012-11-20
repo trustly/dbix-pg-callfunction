@@ -6,18 +6,18 @@ use warnings;
 use DBI;
 use DBD::Pg;
 use DBIx::Connector;
-use Storable qw();
-use MIME::Base64 qw(decode_base64);
+use JSON;
 
-package TrustlyApiMapper;
+package TrustlyApi::Mapper;
 
 BEGIN
 {
     require Exporter;
-    require TrustlyApiMapper::SqlQueries;
+    require TrustlyApi::MapperSqlQueries;
+    require TrustlyApi::DBConnection;
     our $VERSION = 1.00;
     our @ISA = qw(Exporter);
-    our @EXPORT = qw(api_method_call_mapper api_method_call_postprocessing);
+    our @EXPORT = qw(api_method_call_mapper);
 }
 
 # cache for external API method calls
@@ -73,52 +73,53 @@ sub _has_external_api_call_signature
     return $method_signature eq $external_signature;
 }
 
-# Return 1 if the method matches an external API call, false otherwise
-sub _matches_external_api_call
-{
-    my ($dbconn, $method, $data) = @_;
-
-    my $dbh = $dbconn->dbh;
-    die "could not connect to database: $DBI::errstr\n" if (!defined($dbh));
-
-    my $sth = $dbh->prepare($TrustlyApiMapper::SqlQueries::sql_map_external_method_call);
-    $sth->execute($method, [keys %{$data}]);
-
-    return 0 if $sth->rows == 0;
-
-    my $result = $sth->fetchrow_hashref;
-    # make sure there are no more rows
-    die "internal error" if defined($sth->fetchrow_hashref);
-
-    return 1;
-}
-
 sub _map_external_api_call
 {
-    my ($dbconn, $method, $params, $host) = @_;
+    my ($dbc, $method, $params, $host) = @_;
 
     # check that the call has the external API method call signature
     return undef if (!_has_external_api_call_signature($params));
     # now do a lookup in the database to see if this is actually an API method
-    return undef if (!_matches_external_api_call($dbconn, $method, $params->{Data}));
+    my $result = $dbc->execute($TrustlyApi::MapperSqlQueries::sql_map_external_method_call,
+                               $method, [keys %{$params}]);
+    my $num_rows = scalar %{$result->{rows}};
+    # if the signature matches, it has to match an API call
+    die "ERROR_INVALID_FUNCTION unknown external API call \"".$method."(".join(",", keys %{$params}).")\"" if ($num_rows == 0);
 
     return {
                 proname         => 'api_call',
                 nspname         => 'public',
                 returns_json    => 1,
-                params          => $params
+                params          => $params,
+                is_external_api_call => 1
            };
+}
+
+# Replaces hashrefs in a list of hashrefs with their JSON representations
+# XXX maybe this should be in DBConnection->call_function()  ?
+sub _replace_hashrefs
+{
+    my $params = shift;
+    foreach my $key (keys %{$params})
+    {
+        if (ref($params->{$key}) eq 'HASH')
+        {
+            $params->{$key} = JSON::to_json($params->{$key});
+        }
+    }
+
+    return $params;
 }
 
 sub api_method_call_mapper
 {
-    my ($method_call, $dbconn, $host) = @_;
+    my ($method_call, $dbc, $host) = @_;
 
     my $method = $method_call->{method};
     my $params = $method_call->{params};
 
     # check whether this is an external API call
-    if (defined (my $api_call = _map_external_api_call($dbconn, $method, $params)))
+    if (defined (my $api_call = _map_external_api_call($dbc, $method, $params)))
     {
         # It looks like an external API call, so treat it as such.  At this
         # point there's no going back to a "regular" function call.
@@ -126,6 +127,10 @@ sub api_method_call_mapper
         $params->{_host} = $host;
         $params->{_method} = $method;
         $api_call->{params} = $params;
+
+        # To allow passing complex objects to database functions, replace hashrefs
+        # with their JSON representations.
+        _replace_hashrefs($api_call->{params});
 
         return $api_call;
     }
@@ -148,41 +153,38 @@ sub api_method_call_mapper
                     proname         => $cache_entry->{proname},
                     nspname         => $cache_entry->{nspname},
                     returns_json    => $cache_entry->{returns_json},
-                    params          => $params
+                    params          => $params,
+                    is_external_api_call => 0
                };
     }
 
     # not cached, see if we can map it to a function
-    my $dbh = $dbconn->dbh;
-    die "could not connect to database: $DBI::errstr\n" if (!defined($dbh));
-
     my @method_arguments = keys %{$params};
-    my $sth;
+    my $result;
     if ((scalar @method_arguments) == 0)
     {
-        $sth = $dbh->prepare($TrustlyApiMapper::SqlQueries::sql_map_function_call_noparams);
-        $sth->execute($method);
+        $result = $dbc->execute($TrustlyApi::MapperSqlQueries::sql_map_function_call_noparams, $method);
     }
     else
     {
-        $sth = $dbh->prepare($TrustlyApiMapper::SqlQueries::sql_map_function_call);
-        $sth->execute($method, \@method_arguments);
+        $result = $dbc->execute($TrustlyApi::MapperSqlQueries::sql_map_function_call, $method, \@method_arguments);
     }
 
-    die "unknown API call \"".$method_call->{method}."(".join(",", keys %{$method_call->{params}}).")\"" if ($sth->rows == 0);
-    die "could not unambiguously map API call \"".$method_call->{method}."\" to a function" if ($sth->rows > 1);
+    my $num_rows = @{$result->{rows}};
 
-    my $data = $sth->fetchrow_hashref;
-    # make sure there are no more rows
-    die "internal error" if defined($sth->fetchrow_hashref);
+    die $result->{errstr} if (!defined $result->{rows});
+    die "ERROR:  ERROR_INVALID_FUNCTION unknown API call \"".$method_call->{method}."(".join(",", keys %{$method_call->{params}}).")\"" if ($num_rows == 0);
+    die "ERROR:  ERROR_INVALID_PARAMETERS could not unambiguously map API call \"".$method_call->{method}."\" to a function" if ($num_rows > 1);
 
+    my $data = $result->{rows}->[0];
     my $requirehost = $data->{requirehost};
     $api_method_cache{$cache_key} =
         {
             proname         => $data->{proname},
             nspname         => $data->{nspname},
             returns_json    => $data->{returns_json},
-            requirehost     => $requirehost
+            requirehost     => $requirehost,
+            is_external_api_call => 0
         };
 
     # inject host if necessary
@@ -192,7 +194,8 @@ sub api_method_call_mapper
                 proname         => $data->{proname},
                 nspname         => $data->{nspname},
                 returns_json    => $data->{returns_json},
-                params          => $params
+                params          => $params,
+                is_external_api_call => 0
            };
 }
 
@@ -210,7 +213,9 @@ sub _convert_parameter_list
         $new_params->{$new_param} = $old_params->{$old_param};
     }
 
-    return $new_params;
+    # To allow passing complex objects to database functions, replace hashrefs
+    # with their JSON representations.
+    return _replace_hashrefs($new_params);
 }
 
 # Calculate a cache key for a method call, given its signature.

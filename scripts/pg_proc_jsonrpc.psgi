@@ -5,7 +5,6 @@ use warnings;
 
 use DBI;
 use DBD::Pg;
-use DBIx::Pg::CallFunction;
 use DBIx::Connector;
 use Time::HiRes;
 use POSIX qw(strftime);
@@ -17,22 +16,20 @@ use Regexp::Common qw(net delimited);
 my $extensive_logging_path = '/tmp/pg_proc_jsonrpc';
 my $extensive_logging_filename;
 
-require TrustlyApiMapper;
+require TrustlyApi::Mapper;
+require TrustlyApi::DBConnection;
 
 # DBIx::Connector allows us to safely reuse connections by making sure that we
 # don't reuse DBI connections we inherited from our parent process after a
 # fork().
-my $dbconn = DBIx::Connector->new("dbi:Pg:service=pg_proc_jsonrpc", '', '', {pg_enable_utf8 => 1});
-
-# We can simply pass undef as the database handle since we set it for every
-# request anyway.  Additionally, enable the lookup cache to avoid unnecessary
-# database roundtrips.
-my $pg = DBIx::Pg::CallFunction->new(undef, {RaiseError => 0, EnableFunctionLookupCache => 1});
+my $dbconnector = DBIx::Connector->new("dbi:Pg:service=pg_proc_jsonrpc", '', '', {pg_enable_utf8 => 1, RaiseError => 0});
+my $dbc = TrustlyApi::DBConnection->new($dbconnector);
 
 
 my $app = sub {
     my $env = shift;
     my $method_call;
+    my $function_call;
 
     my $invalid_request = [
         '400',
@@ -103,8 +100,6 @@ my $app = sub {
         return $invalid_request;
     }
 
-    my $dbh;
-
     my $result;
 
     my $error = undef;
@@ -123,72 +118,33 @@ my $app = sub {
     {
         # Now map the API method call into a database function call
         my $host = _get_host($env);
-        my $function_call = TrustlyApiMapper::api_method_call_mapper($method_call, $dbconn, $host);
-
-        # To allow passing complex objects to database functions, replace hashrefs
-        # with their JSON representations.
-        _replace_hashrefs($function_call);
-
-        # Ask for a connection from DBIx::Connector.  It is important to do this
-        # inside the  eval  in case the connection attempt fails so we can catch
-        # the error message and send that to the client.  Note: it is important
-		# to use _dbh instead of dbh here because of reasons explained below.
-        $dbh = $dbconn->dbh;
-		# if there's no connection, we're done
-		die $DBI::errstr if (!defined($dbh));
-        $pg->set_dbh($dbh);
-
-		# $dbconn->dbh calls $dbh->ping() every time, and there's no reason to do
-		# that, so we do the following instead: we keep getting the connection
-		# from _dbh so long as queries work correctly on that connection.  If,
-		# for some reason, a query does not work on that connection and we get
-		# back an SQLSTATE suggesting that the connection might be broken, we
-		# call dbh to go through the entire ping/reconnect procedure and retry
-		# the loop immediately.  Because we skip the delay, we only allow that
-		# to happen once per loop.
-		my $retried_connection = 0;
+        $function_call = TrustlyApi::Mapper::api_method_call_mapper($method_call, $dbc, $host);
 
         # loop until we hit an error we can't recover from
         my $delay = 0.1;
-        while ($delay <= 3.0)
+        while ($delay <= 9.0)
         {
             my $proname = $function_call->{proname};
-            $result = $pg->$proname($function_call->{params}, $function_call->{nspname});
+            $result = $dbc->call_function($function_call);
 
-			if (!$retried_connection &&
-					($pg->{SQLState} eq "08000" ||
-					 $pg->{SQLState} eq "57P01" ||
-					 $pg->{SQLState} eq "57P02"))
-			{
-				$retried_connection = 1;
-            	print STDERR "ERROR SQLSTATE $pg->{SQLState};  re-establishing connection\n";
-				$dbh = $dbconn->dbh;
-				$pg->set_dbh($dbh);
-				next;
-			}
-
-            # If the function succeeded but didn't return any results, $result
-            # will still be undef.  We need to check the actual SQLSTATE.
-            if ($pg->{SQLState} eq "00000")
+            if (defined $result->{rows})
             {
                 # OK, the function call succeeded.  If it returned a json object,
                 # unfortunately we need to decode it to re-encode it into the
                 # final result later.
-                $result = from_json($result) if ($function_call->{returns_json} && defined $result);
 
-                # Everything went well, but we still need to allow the mapper to do
-                # special post-processing for some method calls.  We want to do this
-                # inside eval to catch any exceptions.
-                $result = TrustlyApiMapper::api_method_call_postprocessing($method_call, $result);
+                # XXX move this to DBConnection
+                $result = from_json($result->{rows}) if ($function_call->{returns_json} && defined $result);
+
                 $success = 1;
                 last;
             }
 
             # if there's no reason to assume that retrying would help, exit the loop
-            last if (scalar grep { $_ eq $pg->{SQLState} } @retryable_sqlstates) == 0;
+            last if (scalar grep { $_ eq $result->{state} } @retryable_sqlstates) == 0;
 
             # sleep for a while and then retry
-            print STDERR "ERROR SQLSTATE $pg->{SQLState};  retrying in $delay seconds\n";
+            print STDERR "ERROR SQLSTATE $result->{state};  retrying in $delay seconds\n";
             Time::HiRes::sleep($delay);
             $delay = $delay * 3;
         }
@@ -199,35 +155,26 @@ my $app = sub {
         $error = $@;
     }
     elsif (!$success) {
-        $error = $pg->{SQLErrorMessage};
+        $error = $result->{errstr};
     }
 
-    my $response = {
-        result => $result,
-        error  => $error
-    };
+    my $response = { };
 
     if (defined $id) {
         $response->{id} = $id;
     }
+
     if ($version eq '1.1') {
         $response->{version} = $version;
     }
-    if ($version eq '2.0') {
+    elsif ($version eq '2.0') {
         $response->{jsonrpc} = $version;
     }
 
-    if ($version eq '1.1' || $version eq '2.0') {
-        # JSON-RPC 1.1 and 2.0 requires us to delete the "error" field on success and
-        # the "result" field on error.  Additionally, the "error" field is an object.
-        delete $response->{error} if ($success);
-
-        if (!$success)
-        {
-            delete $response->{result};
-            my $errobj = { code => -32000, message => $response->{error} };
-            $response->{error} = $errobj;
-        }
+    if ($success) {
+        $response->{result} = TrustlyApi::create_result_object($dbc, $method_call, $function_call, $result);
+    } else {
+        $response->{error} = TrustlyApi::create_error_object($dbc, $method_call, $function_call, $error);
     }
 
     my $json_response = to_json($response, {pretty => 1});
@@ -242,6 +189,57 @@ my $app = sub {
         [ $json_response ]
     ];
 };
+
+sub _get_errcode_from_error_message
+{
+    my ($dbconn, $errmessage) = @_;
+
+    return 620;
+}
+
+sub _create_error_object
+{
+    my ($dbconn, $method_call, $function_call, $error) = @_;
+
+    die "is_external_api_call not set" if (defined $function_call && !defined $function_call->{is_external_api_call});
+    my $is_external_api_call = defined $function_call ? $function_call->{is_external_api_call} : 0;
+
+    my $errcode;
+    my $errmessage;
+
+    if ($error =~ /^(ERROR:  )?(ERROR_[A-Z_]+) /)
+        { $errmessage = $2; }
+    else
+        { $errmessage = 'ERROR_UNKNOWN'; }
+
+    $errcode = _get_errcode_from_error_message($dbconn, $errmessage);
+
+    my $errorobj =
+        {
+            name => "JSONRPCError",
+            message => $errmessage,
+            code => $errcode
+        };
+
+    # If this is an external API call, we need to sign the error object.
+    if ($is_external_api_call)
+    {
+        $errorobj = TrustlyApi::sign_error_object($errorobj);
+        $errorobj->{error} =
+            {
+                signature => "mysig",
+                uuid => "foo",
+                method => "method",
+                data =>
+                {
+                    message => $errmessage,
+                    code => $errcode
+                }
+            };
+    }
+
+    return $errorobj;
+}
 
 sub _get_extensive_logging_filename
 {
@@ -287,7 +285,7 @@ sub _get_merchant_id_from_params
     return 'no_merchant_id';
 }
 
-# unset extnensive_logging_filename (see _get_extensive_logging_filename)
+# unset extensive_logging_filename (see _get_extensive_logging_filename)
 sub _extensive_log_finish_request
 {
     $extensive_logging_filename = undef;
@@ -318,21 +316,6 @@ sub _log_response
     _write_extensive_log($path, $json);
 }
 
-
-# Replaces hashrefs in $_[0]->{params} with their JSON representations
-sub _replace_hashrefs
-{
-    my $function_call = shift;
-
-    my $params = $function_call->{params};
-    foreach my $key (keys %{$params})
-    {
-        if (ref($params->{$key}) eq 'HASH')
-        {
-            $params->{$key} = to_json($params->{$key});
-        }
-    }
-}
 
 # Return either REMOTE_ADDR, or for internal IP addresses (see _is_internal_ip),
 # return the HTTP X-Forwarded-For header.

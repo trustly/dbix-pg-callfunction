@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-package TrustlyApiMapper::SqlQueries;
+package TrustlyApi::MapperSqlQueries;
 
 BEGIN
 {
