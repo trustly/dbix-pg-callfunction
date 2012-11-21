@@ -67,7 +67,7 @@ my $app = sub {
         my $jsonrpc;
         $env->{'psgi.input'}->read($json_input, $env->{CONTENT_LENGTH});
         my $json_rpc_request = from_json($json_input);
-        _log_request($json_rpc_request, $json_input);
+        _log_request($json_input);
 
 
         $method_call =
@@ -252,11 +252,21 @@ sub _log_request
 {
     return if !defined $extensive_logging_path;
 
-    my ($json_rpc_request, $json) = @_;
+    my $json_input = shift;
 
-    my $merchant_id = _get_merchant_id_from_params($json_rpc_request->{params});
+    my $request = JSON::from_json($json_input);
+    my $params = $request->{params};
+
+    my $merchant_id = _get_merchant_id_from_params($params);
     my $path = _get_extensive_logging_filename($merchant_id, 'request');
-    _write_extensive_log($path, $json);
+
+    # censor out the passwords
+    $params->{Password} =~ s/./*/g if defined $params->{Password};
+    $params->{Data}->{Password} =~ s/./*/g if defined $params->{Data}->{Password};
+    my $censored_json = JSON::to_json($request);
+
+    # and then log the request
+    _write_extensive_log($path, $censored_json);
 }
 
 sub _log_response
