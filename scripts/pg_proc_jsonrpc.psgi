@@ -181,7 +181,8 @@ my $app = sub {
     if ($success) {
         $response->{result} = TrustlyApi::create_result_object($dbc, $method_call, $function_call, $result);
     } else {
-        $response->{error} = TrustlyApi::create_error_object($dbc, $method_call, $function_call, $error);
+        my $log_filename = $extensive_logging_filename // "";
+        $response->{error} = TrustlyApi::create_error_object($dbc, $method_call, $function_call, $error, $log_filename);
     }
 
     my $json_response = to_json($response, {pretty => 1});
@@ -206,7 +207,7 @@ sub _get_extensive_logging_filename
         my $date = strftime("%Y%m%d", localtime);
         my $time = strftime("%H%M%S.", localtime).(Time::HiRes::gettimeofday())[1];
 
-        my $path = "$extensive_logging_path/$merchant_id/$date/";
+        my $path = "$extensive_logging_path/$merchant_id/$date";
         make_path($path);
         $extensive_logging_filename = "$path/$time";
     }

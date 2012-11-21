@@ -7,6 +7,7 @@ use DBI;
 use DBD::Pg;
 use DBIx::Connector;
 use JSON;
+use POSIX qw(strftime);
 
 package TrustlyApi;
 
@@ -111,14 +112,23 @@ sub _get_api_error_code
     }
 }
 
+sub _get_log_timestamp()
+{
+    return POSIX::strftime("%Y-%m-%d %H:%M:%S", localtime);
+}
+
 sub create_error_object
 {
-    my ($dbc, $method_call, $function_call, $errmessage) = @_;
+    my ($dbc, $method_call, $function_call, $errmessage, $log_filename) = @_;
 
     my $errcode;
     my $error;
 
-    print STDERR "API error: $errmessage\n";
+    # remove trailing newlines
+    chomp($errmessage);
+    my $timestamp = _get_log_timestamp();
+
+    print STDERR "$timestamp  API error: $errmessage (request $log_filename)\n";
 
     if ($errmessage =~ /^(ERROR:  )?(ERROR_[A-Z_]+)\b/)
     {
