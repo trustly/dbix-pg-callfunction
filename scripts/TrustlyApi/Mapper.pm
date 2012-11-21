@@ -85,7 +85,7 @@ sub _map_v1_api_call
                                $method, [keys %{$params->{Data}}]);
     my $num_rows = scalar @{$result->{rows}};
     # if the signature matches, it has to match an API call
-    die "ERROR_INVALID_FUNCTION unknown external API call \"".$method."(".join(",", keys %{$params}).")\"" if ($num_rows == 0);
+    die "ERROR_INVALID_FUNCTION unknown external API call \"".$method."(".join(",", keys %{$params->{Data}}).")\"" if ($num_rows == 0);
 
     return {
                 proname         => 'api_call',
