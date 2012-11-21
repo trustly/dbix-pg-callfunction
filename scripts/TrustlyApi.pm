@@ -124,12 +124,6 @@ sub create_error_object
     my $errcode;
     my $error;
 
-    # remove trailing newlines
-    chomp($errmessage);
-    my $timestamp = _get_log_timestamp();
-
-    print STDERR "$timestamp  API error: $errmessage (request $log_filename)\n";
-
     if ($errmessage =~ /^(ERROR:  )?(ERROR_[A-Z_]+)\b/)
     {
         $error = $2;
@@ -142,6 +136,14 @@ sub create_error_object
         $errmessage = 'ERROR_UNKNOWN';
         $errcode = 620;
     }
+
+    # remove trailing newlines
+    chomp($errmessage);
+    my $timestamp = _get_log_timestamp();
+
+    # and print the error in the logs
+    print STDERR "$timestamp  API error: $errmessage (request $log_filename)\n";
+
 
     my $errorobj =
         {
