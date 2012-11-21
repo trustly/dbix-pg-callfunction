@@ -42,7 +42,7 @@ my $app = sub {
                 message => 'Invalid Request.'
             },
             id => undef
-        }, {pretty => 1}) ]
+        }) ]
     ];
 
     my ($method, $params, $id, $version);
