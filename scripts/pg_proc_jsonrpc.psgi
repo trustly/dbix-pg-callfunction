@@ -233,8 +233,8 @@ sub _get_merchant_id_from_params
 {
     my $params = shift;
 
-    # first look into "data" in case this is an api_call()
-    return $params->{data}->{Username} if (defined $params->{data} && defined $params->{data}->{Username});
+    # first look into "Data" in case this is an api_call()
+    return $params->{Data}->{Username} if (defined $params->{Data} && defined $params->{Data}->{Username});
     # then look for a "Username"
     return $params->{Username} if (defined $params->{Username});
 
