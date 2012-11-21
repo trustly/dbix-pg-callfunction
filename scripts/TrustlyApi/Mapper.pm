@@ -62,12 +62,15 @@ sub api_method_call_postprocessing
 
 sub _has_v1_api_call_signature
 {
-    my $external_signature = join(',', sort qw(Signature UUID Data));
+    my $params = shift;
 
-    my $method_params = shift;
-    my $method_signature = join(',', sort keys %{$method_params});
+    # We need to ignore extra parameters, so simply check that the required
+    # ones are present.
+    return 0 if (!defined $params->{Signature});
+    return 0 if (!defined $params->{UUID});
+    return 0 if (!defined $params->{Data});
 
-    return $method_signature eq $external_signature;
+    return 1;
 }
 
 sub _map_v1_api_call
@@ -108,10 +111,16 @@ sub api_method_call_mapper
     {
         my $api_call = _map_v1_api_call($dbc, $method, $params);
 
-        $params = _convert_parameter_list($params);
-        $params->{_host} = $host;
-        $params->{_method} = $method;
-        $api_call->{params} = $params;
+        my $new_params = {};
+
+        $new_params->{_data} = $params->{Data};
+        $new_params->{_uuid} = $params->{UUID};
+        $new_params->{_signature} = $params->{Signature};
+
+        $new_params->{_host} = $host;
+        $new_params->{_method} = $method;
+
+        $api_call->{params} = $new_params;
 
         return $api_call;
     }
