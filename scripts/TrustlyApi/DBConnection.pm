@@ -49,7 +49,7 @@ sub call_function
         # representation of that hash.
         if (ref($value) eq 'HASH')
         {
-            push @param_values, JSON::to_json($value);
+            push @param_values, JSON::encode_json($value);
         }
         else
         {

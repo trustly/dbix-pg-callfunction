@@ -35,7 +35,7 @@ my $app = sub {
     my $invalid_request = [
         '400',
         [ 'Content-Type' => 'application/json; charset=utf-8' ],
-        [ to_json({
+        [ encode_json({
             jsonrpc => '2.0',
             error => {
                 code => -32600,
@@ -67,8 +67,7 @@ my $app = sub {
         my $jsonrpc;
         $env->{'psgi.input'}->read($json_input, $env->{CONTENT_LENGTH});
 
-        # need to pass utf8 => 1 to avoid double encoding
-        my $json_rpc_request = from_json($json_input, {utf8 => 1});
+        my $json_rpc_request = decode_json($json_input);
         _log_request($json_input);
 
 
@@ -187,7 +186,7 @@ my $app = sub {
         $response->{error} = TrustlyApi::create_error_object($dbc, $method_call, $function_call, $error, $log_filename);
     }
 
-    my $json_response = to_json($response, {pretty => 1});
+    my $json_response = encode_json($response);
     _log_response($method_call, $json_response);
 
     # finished logging for this request
@@ -256,7 +255,7 @@ sub _log_request
 
     my $json_input = shift;
 
-    my $request = JSON::from_json($json_input);
+    my $request = JSON::decode_json($json_input);
     my $params = $request->{params};
 
     my $merchant_id = _get_merchant_id_from_params($params);
@@ -265,7 +264,7 @@ sub _log_request
     # censor out the passwords
     $params->{Password} =~ s/./*/g if defined $params->{Password};
     $params->{Data}->{Password} =~ s/./*/g if defined $params->{Data}->{Password};
-    my $censored_json = JSON::to_json($request);
+    my $censored_json = JSON::encode_json($request);
 
     # and then log the request
     _write_extensive_log($path, $censored_json);
