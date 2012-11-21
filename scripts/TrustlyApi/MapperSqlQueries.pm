@@ -159,8 +159,7 @@ SELECT
 FROM
     Functions
 WHERE
-    ApiMethod = $1 AND
-    (ApiParams || text 'Password') <@ $2 AND (ApiParams || text 'Password') @> $2
+    ApiMethod = $1
 };
 
 END

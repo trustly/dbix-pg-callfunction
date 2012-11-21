@@ -234,9 +234,9 @@ sub _get_merchant_id_from_params
     my $params = shift;
 
     # first look into "data" in case this is an api_call()
-    return $params->{data}->{Username} if (exists($params->{data}) && exists($params->{data}->{Username}));
+    return $params->{data}->{Username} if (defined $params->{data} && defined $params->{data}->{Username});
     # then look for a "Username"
-    return $params->{Username} if (exists($params->{Username}));
+    return $params->{Username} if (defined $params->{Username});
 
     # can't figure out the username, give up
     return 'no_merchant_id';
