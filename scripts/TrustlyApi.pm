@@ -133,7 +133,7 @@ sub create_error_object
     # if we haven't yet determined an error code, use ERROR_UNKNOWN
     if (!defined $errcode)
     {
-        $errmessage = 'ERROR_UNKNOWN';
+        $error = 'ERROR_UNKNOWN';
         $errcode = 620;
     }
 
@@ -142,13 +142,13 @@ sub create_error_object
     my $timestamp = _get_log_timestamp();
 
     # and print the error in the logs
-    print STDERR "$timestamp  API error: $errmessage (request $log_filename)\n";
+    print STDERR "$timestamp  API error: $errcode: $error  \"$errmessage\" (request $log_filename)\n";
 
 
     my $errorobj =
         {
             name => "JSONRPCError",
-            message => $errmessage,
+            message => $error,
             code => $errcode
         };
 
