@@ -108,7 +108,7 @@ sub _get_api_error_code
     {
         my $error = $result->{rows}->[0]->{error};
         my $code = $result->{rows}->[0]->{code};
-        return [$error, $code];
+        return ($error, $code);
     }
 }
 
@@ -157,7 +157,7 @@ sub create_error_object
     {
         my $uuid = $method_call->{params}->{UUID};
         my $method = $method_call->{method};
-        my $data = { message => $errmessage, code => $errcode };
+        my $data = { message => $error, code => $errcode };
         my $signature = _sign_object($dbc, $method_call->{method}, $data, $uuid);
 
         $errorobj->{error} =
