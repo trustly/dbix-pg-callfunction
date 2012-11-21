@@ -66,7 +66,9 @@ my $app = sub {
         my $json_input;
         my $jsonrpc;
         $env->{'psgi.input'}->read($json_input, $env->{CONTENT_LENGTH});
-        my $json_rpc_request = from_json($json_input);
+
+        # need to pass utf8 => 1 to avoid double encoding
+        my $json_rpc_request = from_json($json_input, {utf8 => 1});
         _log_request($json_input);
 
 
