@@ -65,11 +65,21 @@ my $app = sub {
     } elsif ($env->{REQUEST_METHOD} eq 'POST') {
         my $json_input;
         my $jsonrpc;
+        my $json_rpc_request;
         $env->{'psgi.input'}->read($json_input, $env->{CONTENT_LENGTH});
 
-        my $json_rpc_request = decode_json($json_input);
-        _log_request($json_input);
+        eval
+        {
+            $json_rpc_request = JSON::decode_json($json_input);
+        };
 
+        if ($@)
+        {
+            TrustlyApi::api_log('ERROR', "malformed JSON from client "._get_host($env));
+            return $invalid_request;
+        }
+
+        _log_request($json_input);
 
         $method_call =
             {

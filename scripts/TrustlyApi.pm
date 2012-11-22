@@ -25,7 +25,7 @@ sub _sign_object
     my ($dbc, $method, $object, $uuid) = @_;
 
     my $result;
-    my $jsondata = JSON::to_json($object);
+    my $jsondata = JSON::encode_json($object);
 
     # catch the exception if the database connection fails
     eval
@@ -43,15 +43,6 @@ sub _sign_object
     return $result->{rows}->[0]->{signature};
 }
 
-sub _get_json_result
-{
-    my $result = shift;
-
-    my $row = $result->{rows}->[0];
-    my $key = (keys %{$row})[0];
-    return JSON::from_json($row->{$key});
-}
-
 sub create_result_object
 {
     my ($dbc, $method_call, $function_call, $result) = @_;
@@ -60,7 +51,7 @@ sub create_result_object
     if ($function_call->{returns_json})
     {
         # extract the JSON as a perl hashref from the result object
-        $resultobj = _get_json_result($result);
+        $resultobj = $result->{decoded_json};
     }
     elsif (!$function_call->{proretset})
     {
@@ -159,6 +150,9 @@ sub create_error_object
         $error = 'ERROR_UNKNOWN';
         $errcode = 620;
     }
+
+    # remove any trailing newlines
+    chomp($errmessage);
 
     # and print the error in the logs
     api_log('ERROR', "$errcode: $error  \"$errmessage\" (request $log_filename)");

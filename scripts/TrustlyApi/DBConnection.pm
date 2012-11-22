@@ -64,6 +64,30 @@ sub call_function
 
     my $result = $self->execute($statement, @param_values);
 
+    if (defined $result->{rows} && $function_call->{returns_json})
+    {
+        my $row = $result->{rows}->[0];
+        my $key = (keys %{$row})[0];
+        my $json = $row->{$key};
+
+        if (!defined $json)
+        {
+            die "invalid NULL JSON reply from function " . 
+                $function_call->{proname}."(".join(',',keys %{$function_call->{params}}).")";
+        }
+
+        eval
+        {
+            $function_call->{decoded_json} = JSON::decode_json($json);
+        };
+
+        if ($@)
+        {
+            die "invalid JSON reply '".$json."' from function " . 
+                $function_call->{proname}."(".join(',',keys %{$function_call->{params}}).")";
+        }
+    }
+
     return $result; 
 }
 
@@ -156,6 +180,7 @@ sub execute
         $errstr = $dbh->errstr // "unknown error (SQLSTATE ".($dbh->state // "unknown").")";
         return { rows => undef, num_rows => -1, state => $dbh->state, errstr => $errstr };
     }
+
     return { rows => $result, num_rows => scalar @{$result}, state => '00000', errstr => undef };
 }
 
