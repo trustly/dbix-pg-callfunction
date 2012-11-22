@@ -86,7 +86,7 @@ sub _map_v1_api_call
     # now do a lookup in the database to see if this is actually an API method
     my $result = $dbc->execute($TrustlyApi::MapperSqlQueries::sql_map_v1_method_call,
                                $method);
-    my $num_rows = scalar @{$result->{rows}};
+    my $num_rows = $result->{num_rows};
     # if the signature matches, it has to match an API call
     die "ERROR_INVALID_FUNCTION unknown v1 API call \"$method\"" if ($num_rows == 0);
 

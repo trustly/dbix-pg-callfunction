@@ -24,14 +24,19 @@ sub _sign_object
 {
     my ($dbc, $method, $object, $uuid) = @_;
 
+    my $result;
     my $jsondata = JSON::to_json($object);
-    my $result = $dbc->execute('SELECT signature FROM OpenSSL_Sign(_method := $1, _jsondata := $2, _uuid := $3) AS f(signature)',
-                                $method, $jsondata, $uuid);
 
-    if (!defined $result->{rows} || (scalar @{$result->{rows}}) != 1)
+    # catch the exception if the database connection fails
+    eval
     {
-        # Signing failed.  This should practically never happen after a
-        # successful call.
+        $result = $dbc->execute('SELECT signature FROM OpenSSL_Sign(_method := $1, _jsondata := $2, _uuid := $3) AS f(signature)',
+                                $method, $jsondata, $uuid);
+    };
+
+    if ($@ || !defined $result->{rows} || $result->{num_rows} != 1)
+    {
+        # Signing failed.  There's not much we can do; just return "undef".
         return undef;
     }
 
@@ -93,10 +98,16 @@ sub _get_api_error_code
 {
     my ($dbc, $error) = @_;
 
+    my $result;
+
     # XXX this query should probably be cached
 
-    my $result = $dbc->execute('SELECT error, code FROM get_api_error_code($1)', $error);
-    if (!defined $result->{rows} || $result->{num_rows} == 0)
+    eval
+    {
+        $result = $dbc->execute('SELECT error, code FROM get_api_error_code($1)', $error);
+    };
+
+    if ($@ || !defined $result->{rows} || $result->{num_rows} != 1)
     {
         # Use ERROR_UNKNOWN if this isn't a code the client is supposed to see
         # or an error happened while trying to look up the code.  Sending out
@@ -143,7 +154,6 @@ sub create_error_object
 
     # and print the error in the logs
     print STDERR "$timestamp  API error: $errcode: $error  \"$errmessage\" (request $log_filename)\n";
-
 
     my $errorobj =
         {
