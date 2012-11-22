@@ -87,8 +87,9 @@ sub execute
     # connection), we call ->dbh() to go through the entire ping/reconnect
     # procedure.
     #
-    # .. UNLESS the previous execute() call timed out.  In that case, just try
-    # ->dbh() once, and if it fails, die immediately.
+    # If a previous execute() call timed out, don't bother with ->_dbh() at
+    # all, just try ->dbh() once, and if it fails, die immediately.  If it
+    # doesn't, loop normally.
     if ($self->{timed_out})
     {
         $dbh = $self->{dbconn}->dbh;
