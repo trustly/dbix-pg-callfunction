@@ -152,7 +152,7 @@ my $app = sub {
             last if (scalar grep { $_ eq $result->{state} } @retryable_sqlstates) == 0;
 
             # sleep for a while and then retry
-            print STDERR "ERROR SQLSTATE $result->{state};  retrying in $delay seconds\n";
+            TrustlyApi::api_log('NOTICE', "got SQLSTATE $result->{state};  retrying in $delay seconds");
             Time::HiRes::sleep($delay);
             $delay = $delay * 3;
         }

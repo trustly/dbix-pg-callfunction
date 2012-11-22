@@ -95,7 +95,7 @@ sub _map_v1_api_call
                 nspname         => 'public',
                 proretset       => 0,
                 returns_json    => 1,
-                params          => $params->{Data}
+                params          => {} # the caller will assign params
            };
 }
 

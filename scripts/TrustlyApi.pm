@@ -17,7 +17,7 @@ BEGIN
     require TrustlyApi::DBConnection;
     our $VERSION = 1.00;
     our @ISA = qw(Exporter);
-    our @EXPORT = qw(create_error_object create_result_object);
+    our @EXPORT = qw(api_log create_error_object create_result_object);
 }
 
 sub _sign_object
@@ -123,9 +123,21 @@ sub _get_api_error_code
     }
 }
 
-sub _get_log_timestamp()
+sub _get_log_timestamp
 {
     return POSIX::strftime("%Y-%m-%d %H:%M:%S", localtime);
+}
+
+sub api_log
+{
+    my ($severity, $message) = @_;
+
+    my $timestamp = _get_log_timestamp();
+
+    # remove any trailing newlines
+    chomp($message);
+
+    print STDERR "$timestamp  API $severity: $message\n";
 }
 
 sub create_error_object
@@ -148,12 +160,8 @@ sub create_error_object
         $errcode = 620;
     }
 
-    # remove trailing newlines
-    chomp($errmessage);
-    my $timestamp = _get_log_timestamp();
-
     # and print the error in the logs
-    print STDERR "$timestamp  API error: $errcode: $error  \"$errmessage\" (request $log_filename)\n";
+    api_log('ERROR', "$errcode: $error  \"$errmessage\" (request $log_filename)");
 
     my $errorobj =
         {
