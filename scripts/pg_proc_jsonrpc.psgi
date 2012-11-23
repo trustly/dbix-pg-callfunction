@@ -273,7 +273,7 @@ sub _log_request
 
     # censor out the passwords
     $params->{Password} =~ s/./*/g if defined $params->{Password};
-    $params->{Data}->{Password} =~ s/./*/g if defined $params->{Data}->{Password};
+    $params->{Data}->{Password} =~ s/./*/g if (defined $params->{Data} && defined $params->{Data}->{Password});
     my $censored_json = JSON::encode_json($request);
 
     # and then log the request

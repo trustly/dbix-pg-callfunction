@@ -78,7 +78,7 @@ sub call_function
 
         eval
         {
-            $function_call->{decoded_json} = JSON::decode_json($json);
+            $result->{decoded_json} = JSON::decode_json($json);
         };
 
         if ($@)
