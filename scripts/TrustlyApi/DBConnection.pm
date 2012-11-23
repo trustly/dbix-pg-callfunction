@@ -148,12 +148,17 @@ sub execute
         # back, make sure we try at least once more, through ->dbh() and not
         # ->_dbh().  That should catch any connection problems.
         #
+        # Note: If an exception is raised from a function called from PL/Perl,
+        # we always get back "XX000" (internal error) so make sure to check for
+        # that one, too.
+        #
         if ($dbh &&
             !($retries == 0 && $dbh->state eq '22000') &&
                ($dbh->state =~ '22[0-9A-Z]{3}' ||
                 $dbh->state =~ '40[0-9A-Z]{3}' ||
                 $dbh->state =~ '42[0-9A-Z]{3}' ||
-                $dbh->state =~ 'P0[0-9A-Z]{3}'))
+                $dbh->state =~ 'P0[0-9A-Z]{3}' ||
+                $dbh->state eq 'XX000'))
         {
             # no need to retry; the connection is fine, the query just failed
             last;
