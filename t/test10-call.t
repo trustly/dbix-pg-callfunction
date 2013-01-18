@@ -28,7 +28,7 @@ plan tests => 8;
 
 $dbh->begin_work;
 # silence "NOTICE: function does not exist, skipping"
-$dbh->do("set session client_min_message = warning");
+$dbh->do("set session client_min_messages = warning");
 $dbh->do("drop function if exists get_userid_by_username(text)");
 $dbh->do("drop function if exists get_user_hosts(integer)");
 $dbh->do("drop function if exists get_user_details(integer)");
