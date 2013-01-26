@@ -54,9 +54,31 @@ The following constructor methods are available:
 
 =over 4
 
-=item my $pg = DBIx::Pg::CallFunction->new($dbh)
+=item my $pg = DBIx::Pg::CallFunction->new($dbh, [$hashref])
 
 This method constructs a new C<DBIx::Pg::CallFunction> object and returns it.
+
+$dbh is a handle to your database connection.
+
+$hashref is an optional reference to a hash containing configuration parameters.
+If it not present, the default values will be used.
+
+=back
+
+=head2 CONFIGURATION PARAMETERS
+
+The following configuration parameters are available:
+
+=over 4
+
+=item EnableFunctionLookupCache
+
+When enabled, the procedure returns set for each function will be cached.
+This is disabled by default.
+
+=item RaiseError
+
+By default, this is enabled. It is used like L<DBI/RaiseError>.
 
 =back
 
