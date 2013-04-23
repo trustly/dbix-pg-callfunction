@@ -5,6 +5,8 @@ author:
 build_requires: {}
 configure_requires:
   ExtUtils::MakeMaker: 6.11
+test_requires:
+  Test::Exception: 0.32
 generated_by: 'Dist::Zilla version 1.100660'
 license: MIT
 meta-spec:
