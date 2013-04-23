@@ -8,6 +8,7 @@ requires        'DBI'            => '1.605';
 requires        'DBD::Pg'        => 0;
 requires        'Carp'           => 0;
 test_requires   'Test::More'     => 0;
+test_requires	'Test::Exception'=> '0.32';
 
 recommends      'JSON'           => 0;
 recommends      'Plack::Request' => 0;
