@@ -1,6 +1,6 @@
 {
    "resources" : {
-      "repository" : "git@github.com:joelonsql/dbix-pg-callfunction.git"
+      "repository" : "git://github.com/joelonsql/dbix-pg-callfunction.git"
    },
    "meta-spec" : {
       "version" : 1.4,
