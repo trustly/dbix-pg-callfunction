@@ -2,6 +2,10 @@
 
 Changes - List of significant changes to DBIx::Pg::CallFunction
 
+=head2 Changes in 0.016
+  Fix META.json, remove tailing newline.
+  (Joel Jacobson)
+
 =head2 Changes in 0.015
   Fix Makefile.PL, require Test::Exception 0.32.
   (Matthew Musgrove)
