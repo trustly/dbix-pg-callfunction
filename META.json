@@ -18,7 +18,7 @@
       "Test::Exception": "0.32"
    },
    "requires" : {
-      "DBI" : "1.605",
+      "DBI" : "1.605"
    },
    "abstract" : "Simple interface for calling PostgreSQL functions from Perl",
    "configure_requires" : {
