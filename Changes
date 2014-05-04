@@ -2,6 +2,13 @@
 
 Changes - List of significant changes to DBIx::Pg::CallFunction
 
+=head2 Changes in 0.015
+  Fix Makefile.PL, require Test::Exception 0.32.
+  (Matthew Musgrove)
+
+  Add initial support for handling default values.
+  (Steeve Lennmark)
+
 =head2 Changes in 0.014
   Correctly use an error object in JSON-RPC versions 1.1 and 2.0 in
   pg_proc_jsonrpc.

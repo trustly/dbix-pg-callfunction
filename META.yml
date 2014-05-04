@@ -17,4 +17,4 @@ requires:
   DBI: 1.605
 resources:
   repository: git://github.com/joelonsql/dbix-pg-callfunction.git
-version: 0.014
+version: 0.015
