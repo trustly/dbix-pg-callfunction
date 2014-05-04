@@ -30,3 +30,6 @@ CREATE OR REPLACE FUNCTION same_name_same_input_arguments(foo text) RETURNS BOOL
 SELECT TRUE;
 $$ LANGUAGE sql;
 
+CREATE OR REPLACE FUNCTION test_default_values(one text, two text, three text default 'three', four text default 'four') RETURNS TEXT AS $$
+SELECT one || two || three || four;
+$$ LANGUAGE sql;
