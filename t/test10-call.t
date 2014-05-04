@@ -24,7 +24,7 @@ my $dbh = eval { DBI->connect("dbi:Pg:dbname=$dbname", undef, undef, { PrintErro
 $dbh->{pg_server_version} >= 90000
     or plan skip_all => "Requires PostgreSQL 9.0 or later";
 
-plan tests => 8;
+plan tests => 11;
 
 $dbh->begin_work;
 # silence "NOTICE: function does not exist, skipping"
@@ -35,6 +35,7 @@ $dbh->do("drop function if exists get_user_details(integer)");
 $dbh->do("drop function if exists get_user_friends(integer)");
 $dbh->do("drop function if exists same_name_same_input_arguments(integer)");
 $dbh->do("drop function if exists same_name_same_input_arguments(text)");
+$dbh->do("drop function if exists test_default_values(text, text, text, text)");
 $dbh->commit;
 
 my $sql = do { # slurp!
@@ -71,6 +72,15 @@ throws_ok( sub{ $pg->same_name_same_input_arguments({foo => 123}) }, qr/multiple
 throws_ok( sub{ $pg->i_do_not_exist({bar => 123}) }, qr/no function matches the input arguments, function: i_do_not_exist/, 'no function match caught okay' );
 
 throws_ok( sub{ $pg->get_user_hosts({userid => 'joel'}) }, qr/Call to get_user_hosts failed: .*? invalid input syntax for integer: "joel"/, 'caught input syntax error' );
+
+my $default_values_filled = $pg->test_default_values({one => 'one', two => 'two', three=> '3', four => '4'});
+like($default_values_filled, qr/^onetwo34$/, 'function with default values filled');
+
+my $default_one_value_filled = $pg->test_default_values({one => 'one', two => 'two', three => '3'});
+like($default_one_value_filled, qr/^onetwo3four$/, 'function with one default value filled');
+
+my $default_no_value_filled = $pg->test_default_values({one => 'one', two => 'two'});
+like($default_no_value_filled, qr/^onetwothreefour$/, 'function without default values filled');
 
 END {
     $dbh->disconnect if $dbh;

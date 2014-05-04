@@ -278,6 +278,7 @@ sub _proretset
                     pg_catalog.pg_proc.oid,
                     pg_catalog.pg_proc.proname,
                     pg_catalog.pg_proc.proretset,
+                    pg_catalog.pg_proc.pronargdefaults,
                     unnest(pg_catalog.pg_proc.proargnames) AS proargname,
                     unnest(pg_catalog.pg_proc.proargmodes) AS proargmode
                 FROM pg_catalog.pg_proc
@@ -294,13 +295,15 @@ sub _proretset
                     oid,
                     proname,
                     proretset,
+                    pronargdefaults,
                     array_agg(proargname) AS proargnames
                 FROM NamedInputArgumentFunctions
                 WHERE proargmode IN ('i','b')
                 GROUP BY
                     oid,
                     proname,
-                    proretset
+                    proretset,
+                    pronargdefaults
                 UNION ALL
                 -- For functions with only IN arguments,
                 -- proargmodes IS NULL
@@ -308,6 +311,7 @@ sub _proretset
                     pg_catalog.pg_proc.oid,
                     pg_catalog.pg_proc.proname,
                     pg_catalog.pg_proc.proretset,
+                    pg_catalog.pg_proc.pronargdefaults,
                     pg_catalog.pg_proc.proargnames
                 FROM pg_catalog.pg_proc
                 INNER JOIN pg_catalog.pg_namespace ON (pg_catalog.pg_namespace.oid = pg_catalog.pg_proc.pronamespace)
@@ -319,26 +323,46 @@ sub _proretset
             -- Find any function matching the name
             -- and having identical argument names
             SELECT * FROM OnlyINandINOUTArguments
-            WHERE ?::text[] <@ proargnames AND ?::text[] @> proargnames
-            -- The order of arguments doesn't matter,
-            -- so compare the arrays by checking
-            -- if A contains B and B contains A
         ");
-        $get_proretset->execute($namespace, $namespace, $name, $namespace, $namespace, $name, $argnames, $argnames);
+        $get_proretset->execute($namespace, $namespace, $name, $namespace, $namespace, $name);
     }
-
 
     my $proretset;
-    my $i = 0;
+    my $found = 0;
     while (my $h = $get_proretset->fetchrow_hashref()) {
-        $i++;
-        $proretset = $h;
+        my $proargnames = $h->{proargnames} ? $h->{proargnames} : [];
+        my $pronargdefaults = $h->{pronargdefaults} ? $h->{pronargdefaults} : 0;
+        my %default_values = map { $_ => 1 } @$proargnames[@$proargnames - $pronargdefaults .. @$proargnames - 1];
+
+        # Check that the argument array is sane
+        my $arguments = 0;
+        if (@$proargnames > 0)
+        {
+            for my $argname (@$argnames)
+            {
+                if ($argname ~~ @$proargnames)
+                {
+                    $arguments++ if not exists $default_values{$argname};
+                }
+                else
+                {
+                    $arguments = 0;
+                    last;
+                }
+            }
+        }
+
+        if ($arguments == @$proargnames - $pronargdefaults)
+        {
+            $found++;
+            $proretset = $h;
+        }
     }
-    if ($i == 0)
+    if ($found == 0)
     {
         croak "no function matches the input arguments, function: $name";
     }
-    elsif ($i == 1)
+    elsif ($found == 1)
     {
         # The function exists and can be called.  Add it to the cache if the
         # caller has asked for caching.
