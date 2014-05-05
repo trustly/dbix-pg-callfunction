@@ -1,5 +1,5 @@
 package DBIx::Pg::CallFunction;
-our $VERSION = '0.017';
+our $VERSION = '0.018';
 use 5.008;
 
 =head1 NAME
@@ -8,7 +8,7 @@ DBIx::Pg::CallFunction - Simple interface for calling PostgreSQL functions from 
 
 =head1 VERSION
 
-version 0.017
+version 0.018
 
 =head1 SYNOPSIS
 
@@ -323,46 +323,40 @@ sub _proretset
             -- Find any function matching the name
             -- and having identical argument names
             SELECT * FROM OnlyINandINOUTArguments
+            WHERE ?::text[] <@ proargnames AND ((
+                -- No default arguments
+                pronargdefaults = 0 AND ?::text[] @> proargnames
+            ) OR (
+                -- Default arguments, only require first input arguments to match
+                pronargdefaults > 0 AND ?::text[] @> proargnames[
+                    1
+                    :
+                    array_upper(proargnames,1) -
+                    LEAST(
+                        pronargdefaults,
+                        array_upper(proargnames,1)-array_upper(?::text[],1)
+                    )
+                ]
+            ))
+            -- The order of arguments doesn't matter,
+            -- so compare the arrays by checking
+            -- if A contains B and B contains A
         ");
-        $get_proretset->execute($namespace, $namespace, $name, $namespace, $namespace, $name);
+        $get_proretset->execute($namespace, $namespace, $name, $namespace, $namespace, $name, $argnames, $argnames, $argnames, $argnames);
     }
+
 
     my $proretset;
-    my $found = 0;
+    my $i = 0;
     while (my $h = $get_proretset->fetchrow_hashref()) {
-        my $proargnames = $h->{proargnames} ? $h->{proargnames} : [];
-        my $pronargdefaults = $h->{pronargdefaults} ? $h->{pronargdefaults} : 0;
-        my %default_values = map { $_ => 1 } @$proargnames[@$proargnames - $pronargdefaults .. @$proargnames - 1];
-
-        # Check that the argument array is sane
-        my $arguments = 0;
-        if (@$proargnames > 0)
-        {
-            for my $argname (@$argnames)
-            {
-                if ($argname ~~ @$proargnames)
-                {
-                    $arguments++ if not exists $default_values{$argname};
-                }
-                else
-                {
-                    $arguments = 0;
-                    last;
-                }
-            }
-        }
-
-        if ($arguments == @$proargnames - $pronargdefaults)
-        {
-            $found++;
-            $proretset = $h;
-        }
+        $i++;
+        $proretset = $h;
     }
-    if ($found == 0)
+    if ($i == 0)
     {
         croak "no function matches the input arguments, function: $name";
     }
-    elsif ($found == 1)
+    elsif ($i == 1)
     {
         # The function exists and can be called.  Add it to the cache if the
         # caller has asked for caching.
@@ -412,11 +406,11 @@ sub _call
     my $query = $self->{dbh}->prepare($sql);
 
 
-	# reset the error information
-	$self->{SQLState} = '00000';
-	$self->{SQLErrorMessage} = undef;
+    # reset the error information
+    $self->{SQLState} = '00000';
+    $self->{SQLErrorMessage} = undef;
 
-	my $failed = !defined $query->execute(@arg_values);
+    my $failed = !defined $query->execute(@arg_values);
 
     # If something went wrong, we might have to invalidate the cache entry for
     # this function.

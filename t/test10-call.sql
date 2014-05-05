@@ -31,5 +31,5 @@ SELECT TRUE;
 $$ LANGUAGE sql;
 
 CREATE OR REPLACE FUNCTION test_default_values(one text, two text, three text default 'three', four text default 'four') RETURNS TEXT AS $$
-SELECT one || two || three || four;
+SELECT $1 || $2 || $3 || $4;
 $$ LANGUAGE sql;
