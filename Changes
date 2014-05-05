@@ -2,6 +2,12 @@
 
 Changes - List of significant changes to DBIx::Pg::CallFunction
 
+=head2 Changes in 0.019
+  Fix bug preventing calling a function with default input args
+  when skipping some of the default args in the beginning, but
+  specifying some default args later in the list of args.
+  (Joel Jacobson)
+
 =head2 Changes in 0.018
   Do mapping of default arguments in SQL instead of Perl,
   as Perl returns arrays in different unpredictable ways.

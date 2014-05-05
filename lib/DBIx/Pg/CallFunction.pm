@@ -1,5 +1,5 @@
 package DBIx::Pg::CallFunction;
-our $VERSION = '0.018';
+our $VERSION = '0.019';
 use 5.008;
 
 =head1 NAME
@@ -8,7 +8,7 @@ DBIx::Pg::CallFunction - Simple interface for calling PostgreSQL functions from 
 
 =head1 VERSION
 
-version 0.018
+version 0.019
 
 =head1 SYNOPSIS
 
@@ -331,18 +331,15 @@ sub _proretset
                 pronargdefaults > 0 AND ?::text[] @> proargnames[
                     1
                     :
-                    array_upper(proargnames,1) -
-                    LEAST(
-                        pronargdefaults,
-                        array_upper(proargnames,1)-array_upper(?::text[],1)
-                    )
+                    array_upper(proargnames,1) - pronargdefaults
                 ]
             ))
             -- The order of arguments doesn't matter,
             -- so compare the arrays by checking
             -- if A contains B and B contains A
-        ");
-        $get_proretset->execute($namespace, $namespace, $name, $namespace, $namespace, $name, $argnames, $argnames, $argnames, $argnames);
+        ") or croak "failed to prepare get_proretset query";
+        $get_proretset->execute($namespace, $namespace, $name, $namespace, $namespace, $name, $argnames, $argnames, $argnames)
+            or croak("failed to execute get_proretset query: " . $get_proretset->errstr);
     }
 
 

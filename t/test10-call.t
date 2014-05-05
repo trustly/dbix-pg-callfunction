@@ -24,7 +24,7 @@ my $dbh = eval { DBI->connect("dbi:Pg:dbname=$dbname", undef, undef, { PrintErro
 $dbh->{pg_server_version} >= 90000
     or plan skip_all => "Requires PostgreSQL 9.0 or later";
 
-plan tests => 11;
+plan tests => 15;
 
 $dbh->begin_work;
 # silence "NOTICE: function does not exist, skipping"
@@ -81,6 +81,15 @@ like($default_one_value_filled, qr/^onetwo3four$/, 'function with one default va
 
 my $default_no_value_filled = $pg->test_default_values({one => 'one', two => 'two'});
 like($default_no_value_filled, qr/^onetwothreefour$/, 'function without default values filled');
+
+throws_ok( sub { $pg->test_default_values({one => 'one'}) }, qr/no function matches the input arguments, function: test_default_values/, 'try calling function without all required input arguments' );
+throws_ok( sub { $pg->test_default_values({one => 'one', two => 'two', three=> '3', four => '4', five => '5'}) }, qr/no function matches the input arguments, function: test_default_values/, 'try calling function with too many input arguments' );
+throws_ok( sub { $pg->test_default_values({three=> '3', four => '4'}) }, qr/no function matches the input arguments, function: test_default_values/, 'try calling function with too few required input arguments' );
+like(
+    $pg->test_default_values({one => 'one', two => 'two', four => '4'}),
+    qr/^onetwothree4$/,
+    'try calling function where input argument three is not specified'
+);
 
 END {
     $dbh->disconnect if $dbh;
