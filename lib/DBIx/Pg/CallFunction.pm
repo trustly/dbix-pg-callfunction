@@ -429,6 +429,7 @@ sub _call
 
     local $self->{dbh}->{RaiseError} = 0;
 
+    $self->{dbh}->commit() if $self->{Debug};
     $self->{dbh}->begin_work() if $self->{Debug};
 
     my $query = $self->{dbh}->prepare($sql);
