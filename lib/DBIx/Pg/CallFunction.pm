@@ -546,7 +546,7 @@ sub _call
         print STDERR $ascii_table;
         print STDERR color 'reset';
 
-        my $pg_stat_xact_user_tables = $self->{dbh}->prepare("SELECT relid, schemaname, relname, seq_scan, seq_tup_read, idx_scan, idx_tup_fetch, n_tup_ins, n_tup_upd, n_tup_del, n_tup_hot_upd, GREATEST(n_tup_ins,n_tup_upd,n_tup_del) FROM pg_catalog.pg_stat_xact_user_tables WHERE (seq_scan+seq_tup_read+idx_scan+idx_tup_fetch+n_tup_ins+n_tup_upd+n_tup_del+n_tup_hot_upd) > 0 ORDER BY ((n_tup_ins+n_tup_upd+n_tup_del+n_tup_hot_upd) > 0) DESC, schemaname, relname");
+        my $pg_stat_xact_user_tables = $self->{dbh}->prepare("SELECT relid, schemaname, relname, seq_scan, seq_tup_read, idx_scan, idx_tup_fetch, n_tup_ins, n_tup_upd, n_tup_del, n_tup_hot_upd, GREATEST(n_tup_ins,n_tup_upd,n_tup_del) FROM pg_catalog.pg_stat_xact_user_tables WHERE (seq_scan+seq_tup_read+COALESCE(idx_scan,0)+COALESCE(idx_tup_fetch,0)+n_tup_ins+n_tup_upd+n_tup_del+n_tup_hot_upd) > 0 ORDER BY ((n_tup_ins+n_tup_upd+n_tup_del+n_tup_hot_upd) > 0) DESC, schemaname, relname");
         $pg_stat_xact_user_tables->execute();
         $ascii_table = Text::ASCIITable->new({headingText => 'pg_catalog.pg_stat_xact_user_tables', allowANSI => 1});
         @output_columns = ('relid', 'schemaname', 'relname', 'seq_scan', 'seq_tup_read', 'idx_scan', 'idx_tup_fetch', 'n_tup_ins', 'n_tup_upd', 'n_tup_del', 'n_tup_hot_upd');
@@ -564,7 +564,7 @@ sub _call
             {
                 $bold = 'bold ';
             }
-            $ascii_table->addRow(map {color($bold . (defined($color_map->{$_}) ? $color_map->{$_} : 'black')) . ($xact_table_row->{$_} eq '0' ? '' : $xact_table_row->{$_}) . color('reset')} @output_columns);
+            $ascii_table->addRow(map {color($bold . (defined($color_map->{$_}) ? $color_map->{$_} : 'black')) . ((!defined($xact_table_row->{$_}) || $xact_table_row->{$_} eq '0') ? '' : $xact_table_row->{$_}) . color('reset')} @output_columns);
         }
         print STDERR $ascii_table;
 
