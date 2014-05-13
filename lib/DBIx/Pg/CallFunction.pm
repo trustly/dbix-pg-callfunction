@@ -408,7 +408,7 @@ sub _call
         use Text::ASCIITable;
         use Term::ReadLine;
         system('clear');
-        my $debug_placeholders = join ",", map { "\n\t$_ := " . (defined($args->{$_}) ? (($args->{$_} =~ m/^\d+(\.\d+)?$/) ? $args->{$_} : "'$args->{$_}'") : 'NULL') } @arg_names;
+        my $debug_placeholders = join ",", map { "\n\t$_ := " . (defined($args->{$_}) ? "'$args->{$_}'" : 'NULL') } @arg_names;
         my $debug_sql = 'SELECT * FROM ' . (defined $namespace ? "$namespace.$name" : $name) . '(' . $debug_placeholders . "\n);\n";
         $SIG{INT} = sub {
             print STDERR color 'reset';
