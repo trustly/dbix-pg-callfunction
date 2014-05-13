@@ -536,7 +536,8 @@ sub _call
         print STDERR $ascii_table;
         print STDERR color 'reset';
 
-        my $pg_stat_xact_user_functions = $self->{dbh}->prepare("SELECT funcid, schemaname, funcname, calls, total_time, self_time FROM pg_catalog.pg_stat_xact_user_functions WHERE calls > 0 ORDER BY schemaname, funcname");
+        my %pg_types_short = ( 'character varying' => 'varchar', 'integer' => 'int', 'timestamp with time zone' => 'timestamptz' );
+        my $pg_stat_xact_user_functions = $self->{dbh}->prepare("SELECT funcid, schemaname, funcid::regprocedure::text AS funcname, calls, total_time, self_time FROM pg_catalog.pg_stat_xact_user_functions WHERE calls > 0 ORDER BY schemaname, funcname");
         $pg_stat_xact_user_functions->execute();
         $ascii_table = Text::ASCIITable->new({headingText => 'pg_catalog.pg_stat_xact_user_functions', allowANSI => 1});
         for (my $xact_func_row_number=0; my $xact_func_row = $pg_stat_xact_user_functions->fetchrow_hashref(); $xact_func_row_number++)
@@ -546,6 +547,10 @@ sub _call
                 @output_columns = ('funcid','schemaname','funcname','calls','total_time','self_time');
                 $ascii_table->setCols(@output_columns);
             }
+            my ($fn_name, $fn_args) = split /(?=\()/, $xact_func_row->{'funcname'}, 2;
+            my $type_regex = join '|', keys %pg_types_short;
+            $fn_args =~ s/($type_regex)/$pg_types_short{$1}/eg;
+            $xact_func_row->{'funcname'} = color('bright_white') . $fn_name . color('reset') . $fn_args;
             $ascii_table->addRow(map {$xact_func_row->{$_}} @output_columns);
         }
         print STDERR color 'black';
