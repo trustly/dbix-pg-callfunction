@@ -410,6 +410,11 @@ sub _call
         system('clear');
         my $debug_placeholders = join ",", map { "\n\t$_ := " . (defined($args->{$_}) ? (($args->{$_} =~ m/^\d+(\.\d+)?$/) ? $args->{$_} : "'$args->{$_}'") : 'NULL') } @arg_names;
         my $debug_sql = 'SELECT * FROM ' . (defined $namespace ? "$namespace.$name" : $name) . '(' . $debug_placeholders . "\n);\n";
+        $SIG{INT} = sub {
+            print STDERR color 'reset';
+            $self->{dbh}->rollback() if $self->{dbh}->{BegunWork};
+            exit;
+        };
         print STDERR color 'bold blue';
         print STDERR $debug_sql;
         print STDERR color 'reset';
@@ -578,6 +583,7 @@ sub _call
             } else {
                 $self->{dbh}->rollback();
             }
+            delete $SIG{INT};
         }
 
     }
