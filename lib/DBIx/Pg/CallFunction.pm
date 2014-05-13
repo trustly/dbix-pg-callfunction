@@ -550,7 +550,7 @@ sub _call
             my ($fn_name, $fn_args) = split /(?=\()/, $xact_func_row->{'funcname'}, 2;
             my $type_regex = join '|', keys %pg_types_short;
             $fn_args =~ s/($type_regex)/$pg_types_short{$1}/eg;
-            $xact_func_row->{'funcname'} = color('bright_white') . $fn_name . color('reset') . $fn_args;
+            $xact_func_row->{'funcname'} = color('bold') . $fn_name . color('reset') . $fn_args;
             $ascii_table->addRow(map {$xact_func_row->{$_}} @output_columns);
         }
         print STDERR color 'black';
