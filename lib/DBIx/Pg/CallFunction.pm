@@ -401,44 +401,29 @@ sub _call
     my $placeholders = join ",", map { "$_ := ?" } @arg_names;
     my $sql = 'SELECT * FROM ' . (defined $namespace ? "$namespace.$name" : $name) . '(' . $placeholders . ');';
 
-    my $ascii_table;
+    $self->{Debug} = 1;
+
+    my $ascii_table1;
+    my $ascii_table2;
+    my $ascii_table3;
+    my $debug_sql;
     if ($self->{Debug})
     {
         use Term::ANSIColor;
         use Text::ASCIITable;
         use Term::ReadLine;
-        system('clear');
         my $debug_placeholders = join ",", map { "\n\t$_ := " . (defined($args->{$_}) ? "'$args->{$_}'" : 'NULL') } @arg_names;
-        my $debug_sql = 'SELECT * FROM ' . (defined $namespace ? "$namespace.$name" : $name) . '(' . $debug_placeholders . "\n);\n";
-        $SIG{INT} = sub {
-            print STDERR color 'reset';
-            $self->{dbh}->rollback() if $self->{dbh}->{BegunWork};
-            exit;
-        };
-        print STDERR color 'bold blue';
-        print STDERR $debug_sql;
-        print STDERR color 'reset';
-        $ascii_table = Text::ASCIITable->new({headingText => 'input ' . (defined $namespace ? "$namespace.$name" : $name)});
-        $ascii_table->setCols('argname','argvalue');
+        $debug_sql = 'SELECT * FROM ' . (defined $namespace ? "$namespace.$name" : $name) . '(' . $debug_placeholders . "\n);\n";
+        $ascii_table1 = Text::ASCIITable->new({headingText => 'input ' . (defined $namespace ? "$namespace.$name" : $name)});
+        $ascii_table1->setCols('argname','argvalue');
         foreach my $argname (@arg_names) {
-            $ascii_table->addRow($argname,$args->{$argname});
+            $ascii_table1->addRow($argname,$args->{$argname});
         }
-        print STDERR color 'black';
-        print $ascii_table;
-        print STDERR color 'reset';
-
-        my $term = Term::ReadLine->new('execute');
-        $term->addhistory("COMMIT");
-        my $line = $term->readline("Press ENTER to execute SQL query");
     }
 
     local $self->{dbh}->{RaiseError} = 0;
 
-    $self->{dbh}->commit() if $self->{Debug};
-    $self->{dbh}->begin_work() if $self->{Debug};
-
     my $query = $self->{dbh}->prepare($sql);
-
 
     # reset the error information
     $self->{SQLState} = '00000';
@@ -487,18 +472,18 @@ sub _call
     my @output_columns;
     if ($self->{Debug})
     {
-        $ascii_table = Text::ASCIITable->new({headingText => 'output ' . (defined $namespace ? "$namespace.$name" : $name)});
+        $ascii_table2 = Text::ASCIITable->new({headingText => 'output ' . (defined $namespace ? "$namespace.$name" : $name)});
     }
     for (my $row_number=0; my $h = $query->fetchrow_hashref(); $row_number++)
     {
         if ($row_number == 0)
         {
             @output_columns = sort keys %{$h};
-            $ascii_table->setCols(@output_columns) if $self->{Debug};
+            $ascii_table2->setCols(@output_columns) if $self->{Debug};
             $num_cols = scalar @output_columns;
             croak "no columns in return" unless $num_cols >= 1;
         }
-        $ascii_table->addRow(map {$h->{$_}} @output_columns) if $self->{Debug};
+        $ascii_table2->addRow(map {$h->{$_}} @output_columns) if $self->{Debug};
         if ($proretset == 0)
         {
             # single-row
@@ -532,63 +517,33 @@ sub _call
 
     if ($self->{Debug})
     {
-        print STDERR color 'black';
-        print STDERR $ascii_table;
-        print STDERR color 'reset';
-
         my %pg_types_short = ( 'character varying' => 'varchar', 'integer' => 'int', 'timestamp with time zone' => 'timestamptz' );
-        my $pg_stat_xact_user_functions = $self->{dbh}->prepare("SELECT funcid, schemaname, funcid::regprocedure::text AS funcname, calls, total_time, self_time FROM pg_catalog.pg_stat_xact_user_functions WHERE calls > 0 ORDER BY schemaname, funcname");
+        my $pg_stat_xact_user_functions = $self->{dbh}->prepare("SELECT _chainid, error FROM debug_assert_flagvalueaccountingtransactions()");
         $pg_stat_xact_user_functions->execute();
-        $ascii_table = Text::ASCIITable->new({headingText => 'pg_catalog.pg_stat_xact_user_functions', allowANSI => 1});
-        for (my $xact_func_row_number=0; my $xact_func_row = $pg_stat_xact_user_functions->fetchrow_hashref(); $xact_func_row_number++)
+        $ascii_table3 = Text::ASCIITable->new({headingText => 'debug_assert_flagvalueaccountingtransactions', allowANSI => 1});
+        my $xact_func_row_number=0;
+        for ($xact_func_row_number=0; my $xact_func_row = $pg_stat_xact_user_functions->fetchrow_hashref(); $xact_func_row_number++)
         {
             if ($xact_func_row_number == 0)
             {
-                @output_columns = ('funcid','schemaname','funcname','calls','total_time','self_time');
-                $ascii_table->setCols(@output_columns);
+                @output_columns = ('_chainid','error');
+                $ascii_table3->setCols(@output_columns);
             }
-            my ($fn_name, $fn_args) = split /(?=\()/, $xact_func_row->{'funcname'}, 2;
-            my $type_regex = join '|', keys %pg_types_short;
-            $fn_args =~ s/($type_regex)/$pg_types_short{$1}/eg;
-            $xact_func_row->{'funcname'} = color('bold') . $fn_name . color('reset') . $fn_args;
-            $ascii_table->addRow(map {$xact_func_row->{$_}} @output_columns);
+            $ascii_table3->addRow(map {$xact_func_row->{$_}} @output_columns);
         }
-        print STDERR color 'black';
-        print STDERR $ascii_table;
-        print STDERR color 'reset';
-
-        my $pg_stat_xact_user_tables = $self->{dbh}->prepare("SELECT relid, schemaname, relname, seq_scan, seq_tup_read, idx_scan, idx_tup_fetch, n_tup_ins, n_tup_upd, n_tup_del, n_tup_hot_upd, GREATEST(n_tup_ins,n_tup_upd,n_tup_del) FROM pg_catalog.pg_stat_xact_user_tables WHERE (seq_scan+seq_tup_read+COALESCE(idx_scan,0)+COALESCE(idx_tup_fetch,0)+n_tup_ins+n_tup_upd+n_tup_del+n_tup_hot_upd) > 0 ORDER BY ((n_tup_ins+n_tup_upd+n_tup_del+n_tup_hot_upd) > 0) DESC, schemaname, relname");
-        $pg_stat_xact_user_tables->execute();
-        $ascii_table = Text::ASCIITable->new({headingText => 'pg_catalog.pg_stat_xact_user_tables', allowANSI => 1});
-        @output_columns = ('relid', 'schemaname', 'relname', 'seq_scan', 'seq_tup_read', 'idx_scan', 'idx_tup_fetch', 'n_tup_ins', 'n_tup_upd', 'n_tup_del', 'n_tup_hot_upd');
-        $ascii_table->setCols(map {color('bold black') . $_ . color('reset')} @output_columns);
-        my $color_map = {
-            n_tup_ins => 'bright_green',
-            n_tup_upd => 'bright_yellow',
-            n_tup_del => 'bright_red'
-        };
-        my $xact_table_row_number=0;
-        for (; my $xact_table_row = $pg_stat_xact_user_tables->fetchrow_hashref(); $xact_table_row_number++)
-        {
-            my $bold = '';
-            if ($xact_table_row->{greatest} > 0)
-            {
-                $bold = 'bold ';
-            }
-            $ascii_table->addRow(map {color($bold . (defined($color_map->{$_}) ? $color_map->{$_} : 'black')) . ((!defined($xact_table_row->{$_}) || $xact_table_row->{$_} eq '0') ? '' : $xact_table_row->{$_}) . color('reset')} @output_columns);
-        }
-        print STDERR $ascii_table;
-
-        if ($self->{Debug})
-        {
-            my $term = Term::ReadLine->new('commit');
-            my $line = $term->readline("Press ENTER to COMMIT or any other key to ROLLBACK");
-            if ($line eq '') {
-                $self->{dbh}->commit();
-            } else {
-                $self->{dbh}->rollback();
-            }
-            delete $SIG{INT};
+        if ($xact_func_row_number > 0) {
+            print STDERR color 'bold blue';
+            print STDERR $debug_sql;
+            print STDERR color 'reset';
+            print STDERR color 'black';
+            print STDERR $ascii_table1;
+            print STDERR color 'reset';
+            print STDERR color 'black';
+            print STDERR $ascii_table2;
+            print STDERR color 'reset';
+            print STDERR color 'black';
+            print STDERR $ascii_table3;
+            print STDERR color 'reset';
         }
 
     }
