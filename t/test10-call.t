@@ -24,7 +24,7 @@ my $dbh = eval { DBI->connect("dbi:Pg:dbname=$dbname", undef, undef, { PrintErro
 $dbh->{pg_server_version} >= 90000
     or plan skip_all => "Requires PostgreSQL 9.0 or later";
 
-plan tests => 15;
+plan tests => 23;
 
 $dbh->begin_work;
 # silence "NOTICE: function does not exist, skipping"
@@ -36,6 +36,8 @@ $dbh->do("drop function if exists get_user_friends(integer)");
 $dbh->do("drop function if exists same_name_same_input_arguments(integer)");
 $dbh->do("drop function if exists same_name_same_input_arguments(text)");
 $dbh->do("drop function if exists test_default_values(text, text, text, text)");
+$dbh->do("drop function if exists test_one_default_value(text)");
+$dbh->do("drop function if exists test_two_default_values(text, text)");
 $dbh->commit;
 
 my $sql = do { # slurp!
@@ -89,6 +91,50 @@ like(
     $pg->test_default_values({one => 'one', two => 'two', four => '4'}),
     qr/^onetwothree4$/,
     'try calling function where input argument three is not specified'
+);
+
+# Test function with exactly one argument (which is default)
+is(
+    $pg->test_one_default_value({ one => 'one-specified' }),
+    'one-specified',
+    'function with exactly one argument (which has a default) returns correctly when passed an argument'
+);
+is(
+    $pg->test_one_default_value({}),
+    'one',
+    'function with exactly one argument (which has a default) returns default correctly when passed empty hash'
+);
+is(
+    $pg->test_one_default_value(),
+    'one',
+    'function with exactly one argument (which has a default) returns default correctly when passed nothing'
+);
+
+# Test function with exactly two arguments (which both have default values)
+is(
+    $pg->test_two_default_values({ one => 'one-specified' }),
+    'one-specifiedtwo',
+    'function with exactly one argument (which has a default) returns correctly when passed first argument'
+);
+is(
+    $pg->test_two_default_values({ two => 'two-specified' }),
+    'onetwo-specified',
+    'function with exactly one argument (which has a default) returns correctly when passed second argument'
+);
+is(
+    $pg->test_two_default_values({ one => 'one-specified', two => 'two-specified' }),
+    'one-specifiedtwo-specified',
+    'function with exactly one argument (which has a default) returns correctly when passed both arguments'
+);
+is(
+    $pg->test_two_default_values({}),
+    'onetwo',
+    'function with exactly two arguments (which both has defaults) returns default correctly when passed empty hash'
+);
+is(
+    $pg->test_two_default_values(),
+    'onetwo',
+    'function with exactly two arguments (which both has defaults) returns default correctly when passed nothing'
 );
 
 END {

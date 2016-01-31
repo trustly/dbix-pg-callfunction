@@ -33,3 +33,11 @@ $$ LANGUAGE sql;
 CREATE OR REPLACE FUNCTION test_default_values(one text, two text, three text default 'three', four text default 'four') RETURNS TEXT AS $$
 SELECT $1 || $2 || $3 || $4;
 $$ LANGUAGE sql;
+
+CREATE OR REPLACE FUNCTION test_one_default_value(one text default 'one') RETURNS TEXT AS $$
+SELECT $1;
+$$ LANGUAGE sql;
+
+CREATE OR REPLACE FUNCTION test_two_default_values(one text default 'one', two text default 'two') RETURNS TEXT AS $$
+SELECT $1 || $2;
+$$ LANGUAGE sql;
