@@ -256,7 +256,7 @@ sub _proretset
             INNER JOIN pg_catalog.pg_namespace ON (pg_catalog.pg_namespace.oid = pg_catalog.pg_proc.pronamespace)
             WHERE (?::text IS NULL OR pg_catalog.pg_namespace.nspname = ?::text)
             AND pg_catalog.pg_proc.proname = ?::text
-            AND pg_catalog.pg_proc.pronargs = 0
+            AND (pg_catalog.pg_proc.pronargs - pg_catalog.pg_proc.pronargdefaults) = 0
         ");
         $get_proretset->execute($namespace,$namespace,$name);
     }
